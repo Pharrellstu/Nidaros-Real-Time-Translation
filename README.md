@@ -13,4 +13,4 @@ A new .NET Web API project initialized with proper solution structure.
 ## Setup
 1. Clone the repository
 2. Run `dotnet restore`
-3. Start the API: `dotnet run --project NidarossRTTLiveSubtitleTranslation.API`
+3. Start the API: `dotnet run --project NidarosRTT.API`
