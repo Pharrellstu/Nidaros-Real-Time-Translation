@@ -12,12 +12,39 @@
 *.dll
 *.pdb
 
+# Output directories
+**/wwwroot/hls/
+**/wwwroot/output/
+**/output/
+
+# Environment files
+.env
+*.env
+
 # Visual Studio files
 .vs/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
+
+# Docker
+.dockerignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Local development
+appsettings.Development.json
+
+# Build artifacts
+**/publish/
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt

@@ -26,9 +26,30 @@
   <!-- hls.js library -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', async function () {
       const video = document.getElementById('video');
-      const videoSrc = 'http://100.110.10.66:1935/Test01/_definst_/CPHTD/chunklist.m3u8';
+      
+      // Check if running from file:// protocol
+      const isFileProtocol = window.location.protocol === 'file:';
+      const baseUrl = isFileProtocol ? 'http://localhost:5000' : '';
+      
+      // Default stream URL
+      let videoSrc = 'http://100.110.10.66:1935/Test01/_definst_/CPHTD/playlist.m3u8';
+      
+      // Try to get config from API if not running from file protocol
+      if (!isFileProtocol) {
+        try {
+          const response = await fetch('/api/config');
+          if (response.ok) {
+            const config = await response.json();
+            if (config.hlsStreamUrl) {
+              videoSrc = config.hlsStreamUrl;
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to load configuration, using default URL:', error);
+        }
+      }
 
       if (window.Hls && Hls.isSupported()) {
         const hls = new Hls();

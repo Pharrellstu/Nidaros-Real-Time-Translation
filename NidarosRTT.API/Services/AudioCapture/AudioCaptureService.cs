@@ -2,9 +2,9 @@ using FFMpegCore;
 using FFMpegCore.Pipes;
 
 
-class Program
+public static class AudioCaptureService
 {
-    static async Task Main(string[] args)
+    public static async Task Main(string[] args)
     {
         // Parse command line arguments
         var options = ParseArguments(args);
