@@ -1,0 +1,53 @@
+# Dependencies
+**/node_modules/
+**/bin/
+**/obj/
+
+# IDE files
+**/.vscode/
+**/.idea/
+**/Visual Studio*/
+
+# OS files
+**/Thumbs.db
+**/*.tmp
+**/Desktop.ini
+
+# Git
+**/.git/
+**/.gitignore
+
+# Docker files
+**/Dockerfile*
+**/docker-compose*.yml
+**/docker-compose*.yaml
+**/Dockerfile*
+
+# Logs
+**/*.log
+
+# Runtime data
+**/pids/
+**/logs/
+
+# Temporary files
+**/*.tmp
+**/*.swp
+**/*.swo
+
+# Build artifacts
+**/dist/
+**/build/
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Documentation (optional - keep if needed)
+# **/README.md
+# **/*.md
+
+# Test files (optional - keep if needed)
+# **/*test*
+# **/*spec*

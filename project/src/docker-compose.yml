@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  audio-capture:
+    build:
+      context: ./AudioCapture
+      dockerfile: Dockerfile
+    container_name: audio-capture
+    volumes:
+      - ./AudioCapture/output:/app/output
+    environment:
+      - RTMP_STREAM_URL=${RTMP_STREAM_URL:-rtmp://100.110.10.66:1935/Test01/_definst_/CPHTD}
+      - HLS_STREAM_URL=${HLS_STREAM_URL:-http://100.110.10.66:1935/Test01/_definst_/CPHTD/playlist.m3u8}
+      - CAPTURE_DURATION_SECONDS=${CAPTURE_DURATION_SECONDS:-5}
+      - MAX_SEGMENTS_TO_KEEP=${MAX_SEGMENTS_TO_KEEP:-10}
+    stdin_open: true
+    tty: true
+    network_mode: "host"
+    restart: "no"
+    # Prevent memory issues
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M

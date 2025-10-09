@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>HLS Stream with hls.js</title>
+  <style>
+    body {
+      background-color: #f0f0f0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 50px;
+    }
+    video {
+      width: 80%;
+      max-width: 800px;
+      height: auto;
+      border: 1px solid #ccc;
+      background-color: #000;
+    }
+  </style>
+</head>
+<body>
+  <h1>Live Stream Player (hls.js)</h1>
+  <video id="video" controls autoplay></video>
+
+  <!-- hls.js library -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const video = document.getElementById('video');
+      const videoSrc = 'http://100.110.10.66:1935/Test01/_definst_/CPHTD/chunklist.m3u8';
+
+      if (window.Hls && Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(videoSrc);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          video.play();
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = videoSrc;
+        video.addEventListener('loadedmetadata', function () {
+          video.play();
+        });
+      } else {
+        alert('Your browser does not support HLS playback.');
+      }
+    });
+  </script>
+</body>
+</html>
