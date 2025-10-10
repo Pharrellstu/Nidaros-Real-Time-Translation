@@ -36,7 +36,8 @@ public static class AudioCaptureService
                 break;
 
             case "continuous":
-                await RunContinuousCapture(hlsUrl, outputDir, options.SegmentDuration, options.MaxSegments);
+                // Use RTMP for capture to avoid HLS segment duplication issues
+                await RunContinuousCapture(rtmpUrl, outputDir, options.SegmentDuration, options.MaxSegments);
                 break;
 
             case "test":
@@ -165,63 +166,49 @@ public static class AudioCaptureService
         Console.WriteLine($"All {count} segments completed!");
     }
 
-    static async Task RunContinuousCapture(string hlsUrl, string outputDir, int durationSeconds, int maxSegments)
+    static async Task RunContinuousCapture(string streamUrl, string outputDir, int durationSeconds, int maxSegments)
     {
-        Console.WriteLine($"Starting continuous recording ({durationSeconds}s segments with 5s spacing)");
+        Console.WriteLine($"Starting FFmpeg-based segmentation ({durationSeconds}s segments, stream-synchronized)");
         Console.WriteLine($"Keeping maximum {maxSegments} segments (auto-cleanup enabled)");
         Console.WriteLine();
 
-        int segmentCount = 1;
-        int consecutiveFailures = 0;
-        const int maxConsecutiveFailures = 3;
-        var lastCaptureTime = DateTime.MinValue;
+        var streamType = streamUrl.StartsWith("rtmp://") ? "RTMP" : "HLS";
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var segmentPattern = Path.Combine(outputDir, $"continuous_{durationSeconds}s_{timestamp}_seg%03d.wav");
 
-        while (true)
+        try
         {
-            var currentTime = DateTime.Now;
-            var timeSinceLastCapture = (currentTime - lastCaptureTime).TotalSeconds;
+            Console.WriteLine($"🎵 Starting stream-synchronized capture from {streamType}...");
+            Console.WriteLine($"Segment pattern: {Path.GetFileName(segmentPattern)}");
 
-            Console.WriteLine($"Time since last capture: {timeSinceLastCapture:F1}s");
+            // Use FFmpeg's segment muxer for precise, stream-synchronized segmentation
+            var success = await FFMpegArguments
+                .FromUrlInput(new Uri(streamUrl))
+                .OutputToFile(segmentPattern, overwrite: true, options => options
+                    .WithCustomArgument("-vn")  // No video
+                    .WithAudioCodec("pcm_s16le")  // WAV format
+                    .WithAudioSamplingRate(16000)  // 16kHz
+                    .WithCustomArgument("-ac 1")  // Mono
+                    .WithCustomArgument("-f segment")  // Use segment muxer
+                    .WithCustomArgument($"-segment_time {durationSeconds}")  // Segment duration
+                    .WithCustomArgument("-segment_format wav")  // Output format
+                    .WithCustomArgument("-reset_timestamps 1")  // Reset timestamps for each segment
+                    .WithCustomArgument(streamType == "HLS" ? "-live_start_index -1" : "")  // HLS: start from live edge
+                    .WithCustomArgument("-segment_wrap 0")  // Don't wrap segment numbers
+                    .WithCustomArgument("-strftime 0"))  // Don't use strftime in filenames
+                .ProcessAsynchronously();
 
-            var timestamp = currentTime.ToString("yyyyMMdd_HHmmss");
-            var filename = $"continuous_{durationSeconds}s_{timestamp}_seg{segmentCount}.wav";
-            var outputFile = Path.Combine(outputDir, filename);
-
-            try
+            if (!success)
             {
-                Console.WriteLine($"Recording segment {segmentCount}...");
-                var startTime = DateTime.Now;
-                await CaptureAudioSegment(hlsUrl, outputFile, durationSeconds);
-                var endTime = DateTime.Now;
-
-                lastCaptureTime = currentTime;
-                consecutiveFailures = 0; // Reset on success
-
-                var captureDuration = (endTime - startTime).TotalSeconds;
-                Console.WriteLine($"Completed segment {segmentCount} in {captureDuration:F1}s");
-
-                segmentCount++;
-
-                // Cleanup old segments if we exceed max
-                if (maxSegments > 0 && segmentCount > maxSegments)
-                {
-                    await CleanupOldSegments(outputDir, maxSegments);
-                }
-            }
-            catch (Exception ex)
-            {
-                consecutiveFailures++;
-                Console.WriteLine($"Failed to capture segment {segmentCount} ({consecutiveFailures}/{maxConsecutiveFailures}): {ex.Message}");
-
-                if (consecutiveFailures >= maxConsecutiveFailures)
-                {
-                    Console.WriteLine($"Too many consecutive failures ({maxConsecutiveFailures}). Stopping continuous recording.");
-                    break;
-                }
+                throw new Exception("FFmpeg segmentation process failed");
             }
 
-            Console.WriteLine($"Waiting 5 seconds for next segment...");
-            await Task.Delay(5000);
+            Console.WriteLine("✅ Stream segmentation completed successfully");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Segmentation failed: {ex.Message}");
+            throw;
         }
     }
 
@@ -297,21 +284,28 @@ public static class AudioCaptureService
         }
     }
 
-    static async Task CaptureAudioSegment(string hlsUrl, string outputFile, int durationSeconds)
+    static async Task CaptureAudioSegment(string streamUrl, string outputFile, int durationSeconds)
     {
         try
         {
-            Console.WriteLine($"  🎵 Capturing {durationSeconds}s from HLS stream...");
+            var streamType = streamUrl.StartsWith("rtmp://") ? "RTMP" : "HLS";
+            Console.WriteLine($"  🎵 Capturing {durationSeconds}s from {streamType} stream...");
 
-            // Use the exact FFmpeg command that we proved works
+            // Use stream-synchronized capture to prevent timing drift
             var success = await FFMpegArguments
-                .FromUrlInput(new Uri(hlsUrl))
+                .FromUrlInput(new Uri(streamUrl))
                 .OutputToFile(outputFile, overwrite: true, options => options
                     .WithDuration(TimeSpan.FromSeconds(durationSeconds))
                     .WithCustomArgument("-vn")  // No video
                     .WithAudioCodec("pcm_s16le")  // WAV format
                     .WithAudioSamplingRate(16000)  // 16kHz
-                    .WithCustomArgument("-ac 1"))  // Mono
+                    .WithCustomArgument("-ac 1")  // Mono
+                    .WithCustomArgument("-copyts")  // Copy input timestamps
+                    .WithCustomArgument("-start_at_zero")  // Start timestamps at zero
+                    .WithCustomArgument("-async 1")  // Audio sync method
+                    .WithCustomArgument(streamType == "HLS" ? "-live_start_index -1" : "")  // HLS: start from live edge
+                    .WithCustomArgument("-fflags +genpts+igndts")  // Generate PTS, ignore DTS
+                    .WithCustomArgument("-avoid_negative_ts disabled"))  // Don't modify timestamps
                 .ProcessAsynchronously();
 
             // Check if it worked
@@ -326,8 +320,17 @@ public static class AudioCaptureService
                 var fileInfo = new FileInfo(outputFile);
                 if (fileInfo.Length > 0)
                 {
+                    // Check for duplicate content by comparing with previous file
+                    var isDuplicate = await CheckForDuplicateContent(outputFile);
+                    if (isDuplicate)
+                    {
+                        Console.WriteLine($"⚠️  Duplicate content detected, removing: {Path.GetFileName(outputFile)}");
+                        File.Delete(outputFile);
+                        throw new Exception("Duplicate audio content detected - skipping this segment");
+                    }
+                    
                     // Show success and file size
-                    Console.WriteLine($"Created: {Path.GetFileName(outputFile)} ({fileInfo.Length} bytes)");
+                    Console.WriteLine($"✅ Created: {Path.GetFileName(outputFile)} ({fileInfo.Length} bytes)");
                 }
                 else
                 {
@@ -345,6 +348,68 @@ public static class AudioCaptureService
         {
             Console.WriteLine($"Failed to capture audio segment: {ex.Message}");
             throw;
+        }
+    }
+
+    static async Task<bool> CheckForDuplicateContent(string currentFile)
+    {
+        try
+        {
+            var outputDir = Path.GetDirectoryName(currentFile);
+            var allFiles = Directory.GetFiles(outputDir, "continuous_*.wav")
+                .Where(f => f != currentFile)
+                .OrderByDescending(f => new FileInfo(f).CreationTime)
+                .Take(3) // Check last 3 files
+                .ToList();
+
+            if (!allFiles.Any()) return false;
+
+            // Get file size and a small sample for quick comparison
+            var currentInfo = new FileInfo(currentFile);
+            var currentSample = await GetAudioSample(currentFile);
+
+            foreach (var previousFile in allFiles)
+            {
+                var previousInfo = new FileInfo(previousFile);
+                
+                // Quick size comparison (allow small variance due to encoding)
+                var sizeDiff = Math.Abs(currentInfo.Length - previousInfo.Length);
+                if (sizeDiff < 1000) // Less than 1KB difference
+                {
+                    var previousSample = await GetAudioSample(previousFile);
+                    
+                    // Compare audio samples
+                    if (currentSample.SequenceEqual(previousSample))
+                    {
+                        Console.WriteLine($"Duplicate detected: {Path.GetFileName(currentFile)} matches {Path.GetFileName(previousFile)}");
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error checking for duplicates: {ex.Message}");
+            return false; // Don't block on duplicate check errors
+        }
+    }
+
+    static async Task<byte[]> GetAudioSample(string filePath)
+    {
+        try
+        {
+            // Read first 1KB of audio data (skip WAV header)
+            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+            stream.Seek(44, SeekOrigin.Begin); // Skip WAV header
+            var buffer = new byte[1024];
+            await stream.ReadAsync(buffer, 0, buffer.Length);
+            return buffer;
+        }
+        catch
+        {
+            return new byte[0];
         }
     }
 }
