@@ -1,41 +1,31 @@
+using LiveSubtitleTranslation.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
+var streamUrl = "http://10.8.5.53:1935/live/OBSstream/playlist.m3u8";
+var listener = new WowzaAudioListener(streamUrl);
 
-app.UseHttpsRedirection();
+app.MapGet("/", () => "Audio capture test running...");
 
-var summaries = new[]
+_ = Task.Run(async () =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    Console.WriteLine("Starting Wowza audio capture test...");
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    while (true)
+    {
+        try
+        {
+            var audioFile = await listener.CaptureAudioChunkAsync();
+            Console.WriteLine($"✅ Captured: {audioFile}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Error: {ex.Message}");
+        }
+
+        await Task.Delay(8000); // wait before next capture
+    }
+});
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
