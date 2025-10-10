@@ -26,3 +26,16 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+
+  audio-capture:
+    build:
+      context: ./NidarosRTT.API/Services/AudioCapture
+      dockerfile: Dockerfile
+    volumes:
+      - ./AudioCapture/output:/app/output
+    environment:
+      - RTMP_STREAM_URL=${RTMP_STREAM_URL:-rtmp://172.20.160.1:1935/Test01/_definst_/myStream}
+      - HLS_STREAM_URL=${HLS_STREAM_URL:-http://172.20.160.1:1935/Test01/_definst_/myStream/playlist.m3u8}
+    network_mode: "host"
+    command: ["--mode", "continuous", "--duration", "5", "--max-segments", "10"]
+    restart: unless-stopped

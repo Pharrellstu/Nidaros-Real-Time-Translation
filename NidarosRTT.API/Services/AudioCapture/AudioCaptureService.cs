@@ -14,9 +14,9 @@ public static class AudioCaptureService
 
         // Get stream URLs from environment or use defaults
         string rtmpUrl = Environment.GetEnvironmentVariable("RTMP_STREAM_URL") ??
-                        "rtmp://100.110.10.66:1935/Test01/_definst_/CPHTD";
+                        "rtmp://host.docker.internal:1935/Test01/_definst_/myStream";
         string hlsUrl = Environment.GetEnvironmentVariable("HLS_STREAM_URL") ??
-                       "http://100.110.10.66:1935/Test01/_definst_/CPHTD/playlist.m3u8";
+                       "http://host.docker.internal:1935/Test01/_definst_/myStream/playlist.m3u8";
 
         Console.WriteLine($"Stream URL: {hlsUrl}");
         Console.WriteLine();
@@ -25,13 +25,8 @@ public static class AudioCaptureService
         string outputDir = "/app/output";
         Directory.CreateDirectory(outputDir);
 
-        // Test connectivity first (only if not in help mode)
-        if (options.Mode != "help")
-        {
-            Console.WriteLine("Testing stream connectivity...");
-            await TestConnectivity(hlsUrl);
-            Console.WriteLine();
-        }
+        // Skip connectivity test for now - go straight to capture
+        Console.WriteLine("Skipping connectivity test - proceeding to capture...");
 
         // Run the appropriate mode
         switch (options.Mode)
@@ -41,7 +36,7 @@ public static class AudioCaptureService
                 break;
 
             case "continuous":
-                await RunContinuousCapture(rtmpUrl, outputDir, options.SegmentDuration, options.MaxSegments);
+                await RunContinuousCapture(hlsUrl, outputDir, options.SegmentDuration, options.MaxSegments);
                 break;
 
             case "test":
@@ -170,7 +165,7 @@ public static class AudioCaptureService
         Console.WriteLine($"All {count} segments completed!");
     }
 
-    static async Task RunContinuousCapture(string rtmpUrl, string outputDir, int durationSeconds, int maxSegments)
+    static async Task RunContinuousCapture(string hlsUrl, string outputDir, int durationSeconds, int maxSegments)
     {
         Console.WriteLine($"Starting continuous recording ({durationSeconds}s segments with 5s spacing)");
         Console.WriteLine($"Keeping maximum {maxSegments} segments (auto-cleanup enabled)");
@@ -196,7 +191,7 @@ public static class AudioCaptureService
             {
                 Console.WriteLine($"Recording segment {segmentCount}...");
                 var startTime = DateTime.Now;
-                await CaptureAudioSegment(rtmpUrl, outputFile, durationSeconds);
+                await CaptureAudioSegment(hlsUrl, outputFile, durationSeconds);
                 var endTime = DateTime.Now;
 
                 lastCaptureTime = currentTime;
@@ -302,24 +297,21 @@ public static class AudioCaptureService
         }
     }
 
-    static async Task CaptureAudioSegment(string rtmpUrl, string outputFile, int durationSeconds)
+    static async Task CaptureAudioSegment(string hlsUrl, string outputFile, int durationSeconds)
     {
-        // Make a temp file for the audio chunk
-        var tempFile = Path.Combine(Path.GetTempPath(), $"temp_{Guid.NewGuid()}.wav");
-
         try
         {
-            Console.WriteLine($"  🎵 Capturing {durationSeconds}s from RTMP stream...");
+            Console.WriteLine($"  🎵 Capturing {durationSeconds}s from HLS stream...");
 
-            // Grab audio from the live stream using ffmpeg
+            // Use the exact FFmpeg command that we proved works
             var success = await FFMpegArguments
-                .FromUrlInput(new Uri(rtmpUrl))  // Connect to the live RTMP feed
-                .OutputToFile(tempFile, overwrite: true, options => options
-                    .WithDuration(TimeSpan.FromSeconds(durationSeconds))  // How long to record
-                    .WithAudioCodec("pcm_s16le")  // Make it a WAV file
-                    .WithAudioSamplingRate(16000)  // Good quality for talking
-                    .WithCustomArgument("-ac 1")  // One audio channel (mono)
-                    .WithCustomArgument("-vn"))   // Skip any video
+                .FromUrlInput(new Uri(hlsUrl))
+                .OutputToFile(outputFile, overwrite: true, options => options
+                    .WithDuration(TimeSpan.FromSeconds(durationSeconds))
+                    .WithCustomArgument("-vn")  // No video
+                    .WithAudioCodec("pcm_s16le")  // WAV format
+                    .WithAudioSamplingRate(16000)  // 16kHz
+                    .WithCustomArgument("-ac 1"))  // Mono
                 .ProcessAsynchronously();
 
             // Check if it worked
@@ -329,21 +321,18 @@ public static class AudioCaptureService
             }
 
             // Check if file was created and has content
-            if (File.Exists(tempFile))
+            if (File.Exists(outputFile))
             {
-                var fileInfo = new FileInfo(tempFile);
+                var fileInfo = new FileInfo(outputFile);
                 if (fileInfo.Length > 0)
                 {
                     // Show success and file size
                     Console.WriteLine($"Created: {Path.GetFileName(outputFile)} ({fileInfo.Length} bytes)");
-
-                    // Move to the output folder
-                    File.Move(tempFile, outputFile, overwrite: true);
                 }
                 else
                 {
                     // File was created but empty
-                    File.Delete(tempFile);
+                    File.Delete(outputFile);
                     throw new Exception($"Output file {outputFile} was created but is empty (0 bytes)");
                 }
             }
@@ -356,14 +345,6 @@ public static class AudioCaptureService
         {
             Console.WriteLine($"Failed to capture audio segment: {ex.Message}");
             throw;
-        }
-        finally
-        {
-            // Clean up temp file if it still exists
-            if (File.Exists(tempFile))
-            {
-                try { File.Delete(tempFile); } catch { }
-            }
         }
     }
 }
