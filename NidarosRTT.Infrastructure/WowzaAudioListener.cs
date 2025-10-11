@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Xabe.FFmpeg;
 
-namespace LiveSubtitleTranslation.Infrastructure
+namespace NidarosRTT.Infrastructure
 {
     public class WowzaAudioListener
     {
