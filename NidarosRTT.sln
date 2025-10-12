@@ -3,13 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NidarosRTT.API", "NidarosRTT.API\NidarosRTT.API.csproj", "{53C379B5-48D7-4B77-B926-F371D42D53D7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NidarosRTT.API", "NidarosRTT.API\NidarosRTT.API.csproj", "{53C379B5-48D7-4B77-B926-F371D42D53D7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NidarosRTT.Core", "NidarosRTT.Core\NidarosRTT.Core.csproj", "{5557EA4A-CAE2-4BFE-A547-714C3893DB46}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NidarosRTT.Core", "NidarosRTT.Core\NidarosRTT.Core.csproj", "{5557EA4A-CAE2-4BFE-A547-714C3893DB46}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NidarosRTT.Infrastructure", "NidarosRTT.Infrastructure\NidarosRTT.Infrastructure.csproj", "{15C76EAF-A404-470F-8A89-2D8A40367A61}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NidarosRTT.Infrastructure", "NidarosRTT.Infrastructure\NidarosRTT.Infrastructure.csproj", "{15C76EAF-A404-470F-8A89-2D8A40367A61}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NidarosRTT.Tests", "NidarosRTT.Tests\NidarosRTT.Tests.csproj", "{31C5F193-5DAA-4730-B24C-8321F777581A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NidarosRTT.Tests", "NidarosRTT.Tests\NidarosRTT.Tests.csproj", "{31C5F193-5DAA-4730-B24C-8321F777581A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
