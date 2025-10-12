@@ -1,35 +1,70 @@
 using System.Diagnostics;
-using Xabe.FFmpeg;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NidarosRTT.Infrastructure
 {
-    public class WowzaAudioListener
+    public interface IWowzaAudioListener
+    {
+        Task<string?> CaptureAudioChunkAsync(CancellationToken token);
+    }
+
+    public class WowzaAudioListener : IWowzaAudioListener
     {
         private readonly string _streamUrl;
         private readonly string _tempFolder;
+        private readonly string _ffmpegPath;
 
-        public WowzaAudioListener(string streamUrl)
+        public WowzaAudioListener(string streamUrl, string ffmpegExecutablePath)
         {
             _streamUrl = streamUrl;
-            _tempFolder = Path.Combine(Directory.GetCurrentDirectory(), "temp");
+            _ffmpegPath = Path.Combine(ffmpegExecutablePath, "ffmpeg.exe");
+            _tempFolder = Path.Combine(Path.GetTempPath(), "LiveSubtitleTemp");
             Directory.CreateDirectory(_tempFolder);
+
+            if (!File.Exists(_ffmpegPath))
+            {
+                throw new FileNotFoundException($"FFmpeg executable not found at '{_ffmpegPath}'. Please ensure FFmpeg is installed and the path is correct.");
+            }
         }
 
-        public async Task<string> CaptureAudioChunkAsync()
+        public async Task<string?> CaptureAudioChunkAsync(CancellationToken token)
         {
-            var outputFile = Path.Combine(_tempFolder, $"chunk_{DateTime.UtcNow.Ticks}.wav");
+            var outputFileName = $"chunk_{DateTime.UtcNow.Ticks}.wav";
+            var outputFile = Path.Combine(_tempFolder, outputFileName);
 
-            // Ensure FFmpeg executable path is correct
-            FFmpeg.SetExecutablesPath("C:\\ffmpeg\\bin");
+            // Command arguments for ffmpeg
+            // -i: input URL
+            // -t 5: duration of 5 seconds
+            // -vn: no video
+            // -acodec pcm_s16le: standard WAV audio codec
+            // -ar 16000: sample rate of 16kHz (standard for speech recognition)
+            // -ac 1: mono channel
+            // -y: overwrite output file if it exists
+            var arguments = $"-i \"{_streamUrl}\" -t 5 -vn -acodec pcm_s16le -ar 16000 -ac 1 -y \"{outputFile}\"";
 
-            // Create custom FFmpeg command to extract *only audio* and encode to PCM WAV
-            var arguments = $"-i \"{_streamUrl}\" -vn -acodec pcm_s16le -ar 44100 -ac 2 -t 5 \"{outputFile}\"";
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = _ffmpegPath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
 
-            var conversion = FFmpeg.Conversions.New();
-            conversion.AddParameter(arguments, ParameterPosition.PostInput);
-            conversion.SetOverwriteOutput(true);
+            using var process = new Process { StartInfo = processStartInfo };
 
-            await conversion.Start();
+            process.Start();
+            await process.WaitForExitAsync(token);
+
+            if (process.ExitCode != 0)
+            {
+                var error = await process.StandardError.ReadToEndAsync();
+                Console.WriteLine($"[FFMPEG ERROR] {error}");
+                return null; // Return null if capture failed
+            }
 
             return outputFile;
         }
