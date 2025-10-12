@@ -38,7 +38,7 @@ namespace NidarosRTT.Infrastructure
             // -otxt: output format as plain text
             // -l auto: auto-detect language
             // --no-timestamps: we don't need timestamps for this simple demo
-            var arguments = $"-m \"{_modelPath}\" -f \"{audioFilePath}\" -otxt -l auto --no-timestamps";
+            var arguments = $"-m \"{_modelPath}\" -f \"{audioFilePath}\" -otxt -l auto --no-timestamps -t 6";
 
             var processStartInfo = new ProcessStartInfo
             {

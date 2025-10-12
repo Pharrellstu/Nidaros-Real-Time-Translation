@@ -1,5 +1,6 @@
 using NidarosRTT.Infrastructure;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,7 +13,7 @@ public class Program
         // IMPORTANT: Update these paths to match your system.
         var streamUrl = "rtsp://10.8.5.53:1935/live/OBSstream";
         var whisperCliPath = @"C:\Users\Pharrell\whisper.cpp\build\bin\whisper-cli.exe"; // Common path for whisper.cpp main executable
-        var modelPath = @"C:\Users\Pharrell\whisper.cpp\models\ggml-base.en.bin";
+        var modelPath = @"C:\Users\Pharrell\whisper.cpp\models\ggml-tiny.en.bin";
         var ffmpegPath = @"C:\ffmpeg\bin"; // Path to the folder containing ffmpeg.exe
 
         // --- Dependency Injection Setup ---
@@ -70,47 +71,54 @@ public class Program
             }
         }, cts.Token);
 
-        // Task 2: Dequeue audio file and transcribe it
-        var transcribeTask = Task.Run(async () =>
+        // Task 2: Multiple transcription workers for parallel processing
+        var transcribeTasks = new List<Task>();
+        int maxConcurrentTranscriptions = 6; // Adjust based on your CPU
+
+        for (int i = 0; i < maxConcurrentTranscriptions; i++)
         {
-            while (!cts.Token.IsCancellationRequested)
+            transcribeTasks.Add(Task.Run(async () =>
             {
-                try
+                while (!cts.Token.IsCancellationRequested)
                 {
-                    var audioFile = await processingQueue.DequeueAsync(cts.Token);
-                    Console.WriteLine($"[PROCESS] Transcribing: {Path.GetFileName(audioFile)}...");
-
-                    var text = await whisperService.TranscribeAsync(audioFile, cts.Token);
-
-                    if (!string.IsNullOrWhiteSpace(text))
+                    try
                     {
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine($"[TRANSCRIPTION] {DateTime.Now:T} → {text.Trim()}");
-                        Console.ResetColor();
+                        var audioFile = await processingQueue.DequeueAsync(cts.Token);
+                        Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(audioFile)}...");
+
+                        var text = await whisperService.TranscribeAsync(audioFile, cts.Token);
+
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            Console.ForegroundColor = ConsoleColor.Green;
+                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {text.Trim()}");
+                            Console.ResetColor();
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[PROCESS-{Task.CurrentId}] No text transcribed.");
+                        }
+
+                        // Clean up
+                        if (File.Exists(audioFile))
+                        {
+                            File.Delete(audioFile);
+                        }
                     }
-                    else
+                    catch (OperationCanceledException) { /* Expected */ }
+                    catch (Exception ex)
                     {
-                        Console.WriteLine("[PROCESS] No text transcribed.");
-                    }
-
-                    // Clean up the processed audio file
-                    if (File.Exists(audioFile))
-                    {
-                        File.Delete(audioFile);
+                        Console.WriteLine($"[PROCESS ERROR-{Task.CurrentId}] {ex.Message}");
                     }
                 }
-                catch (OperationCanceledException)
-                {
-                    // Expected on shutdown
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[PROCESS ERROR] {ex.Message}");
-                }
-            }
-        }, cts.Token);
+            }, cts.Token));
+        }
 
-        await Task.WhenAll(captureTask, transcribeTask);
+        // Wait for all tasks (capture + all transcription workers)
+        var allTasks = new List<Task> { captureTask };
+        allTasks.AddRange(transcribeTasks);
+
+        await Task.WhenAll(allTasks);
 
         // This part will not be reached until cancellation,
         // but it's good practice for a web app context.
