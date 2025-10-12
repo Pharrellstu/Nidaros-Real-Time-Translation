@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Stream with Subtitles</title>
+    <!-- Video.js CSS -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+        }
+        .video-container {
+            width: 90%;
+            max-width: 960px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #subtitle-display {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 960px;
+            min-height: 50px;
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: 500;
+            color: #ffffff;
+            border: 1px solid #333;
+        }
+        .status-dot {
+            height: 12px;
+            width: 12px;
+            background-color: #bbb;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .connected { background-color: #28a745; }
+        .disconnected { background-color: #dc3545; }
+        #connection-status {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Live Subtitle Demo</h1>
+
+<div class="video-container">
+    <video-js id="live-video" class="vjs-default-skin vjs-big-play-centered" controls preload="auto" width="960" height="540" data-setup="{}">
+        <!-- IMPORTANT: Update this URL to your HLS stream URL -->
+        <source src="http://172.20.10.8:1935/live/OBSstream/playlist.m3u8" type="application/x-mpegURL">
+        <p class="vjs-no-js">
+            To view this video please enable JavaScript, and consider upgrading to a
+            web browser that
+            <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+        </p>
+    </video-js>
+</div>
+
+<div id="subtitle-display">
+    Waiting for transcription...
+</div>
+<div id="connection-status">
+    <span id="status-indicator" class="status-dot disconnected"></span>
+    <span>Connecting to subtitle server...</span>
+</div>
+
+
+<!-- Video.js and SignalR scripts -->
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // 1. Initialize Video.js Player
+        const player = videojs('live-video');
+        player.play();
+
+        // 2. Setup SignalR Connection
+        const subtitleDisplay = document.getElementById('subtitle-display');
+        const connectionStatus = document.getElementById('connection-status');
+        const statusIndicator = document.getElementById('status-indicator');
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("http://localhost:5032/SubtitlesHub") // This must match the endpoint in Program.cs
+            .withAutomaticReconnect()
+            .build();
+
+        // Handle incoming transcriptions
+        connection.on("ReceiveTranscription", (text) => {
+            console.log("Received:", text);
+            subtitleDisplay.textContent = text;
+        });
+
+        // Update UI based on connection status
+        connection.onreconnecting(error => {
+            console.warn(`Connection lost: ${error}. Reconnecting...`);
+            statusIndicator.className = 'status-dot disconnected';
+            connectionStatus.children[1].textContent = 'Connection lost. Reconnecting...';
+        });
+
+        connection.onreconnected(connectionId => {
+            console.log(`Connection re-established. Connected with ID: ${connectionId}`);
+            statusIndicator.className = 'status-dot connected';
+            connectionStatus.children[1].textContent = 'Connected to subtitle server.';
+        });
+
+        // 3. Start the connection
+        async function start() {
+            try {
+                await connection.start();
+                console.log("SignalR Connected.");
+                statusIndicator.className = 'status-dot connected';
+                connectionStatus.children[1].textContent = 'Connected to subtitle server.';
+            } catch (err) {
+                console.error("SignalR Connection Error: ", err);
+                statusIndicator.className = 'status-dot disconnected';
+                connectionStatus.children[1].textContent = 'Failed to connect to subtitle server.';
+                setTimeout(start, 5000); // Retry connection after 5 seconds
+            }
+        }
+
+        start();
+    });
+</script>
+</body>
+</html>
