@@ -26,6 +26,7 @@ T1 — Simple “Wyoming bridge” (POC)
     - streams PCM to faster-whisper via Wyoming
     - emits finalized transcript chunks with timestamps
   (Note: easiest path is a small Python script using the official Wyoming client lib; we can replace with C# later.)
+[x] Added initial Python bridge script at scripts/wyoming_bridge/bridge.py (segments via ffmpeg, calls wyoming-cli per chunk, prints JSON lines)
 
 T2 — WebVTT output
 [ ] Convert transcript chunks to WebVTT cues (start/end times)
