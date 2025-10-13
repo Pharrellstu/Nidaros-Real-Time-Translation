@@ -33,3 +33,29 @@ services:
             - WSE_HOST=http://wse.docker:8087
         ports:
             - 8088:8080
+
+    faster-whisper:
+      image: lscr.io/linuxserver/faster-whisper:latest
+      container_name: faster-whisper
+      environment:
+        - PUID=1000
+        - PGID=1000
+        - TZ=Europe/Amsterdam
+        - WHISPER_MODEL=base      # or small/large-v3 depending on your needs
+        - WHISPER_LANG=nl           # 'nl' for Dutch language model
+        - WHISPER_BEAM=5            # optional beam size, higher improves accuracy but uses more resources
+        - LOG_LEVEL=full            # optional logging level
+      volumes:
+        - ./faster-whisper/data:/config
+      ports:
+        - 10300:10300
+      restart: unless-stopped
+      # Uncomment and configure the following for Nvidia GPU support:
+      # runtime: nvidia
+      # deploy:
+      #   resources:
+      #     reservations:
+      #       devices:
+      #         - driver: nvidia
+      #           count: all
+      #           capabilities: [gpu]
