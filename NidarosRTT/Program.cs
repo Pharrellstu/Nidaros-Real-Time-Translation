@@ -10,6 +10,7 @@ internal static class Program
     // Simple contract:
     // - Default: describe -> prints info JSON
     // - transcribe <pcmFile> -> streams 16kHz mono s16le PCM audio and prints transcript
+    // - live <hls-url> [segmentSeconds] -> pulls live audio via ffmpeg, segments, transcribes, prints
     private const string DefaultHost = "127.0.0.1";
     private const int DefaultPort = 10300;
 
@@ -24,8 +25,42 @@ internal static class Program
         }
 
         // Commands:
+        // - live <hls-url> [segmentSeconds] [host] [port]
         // - transcribe <path-to-16k-mono-s16le.pcm> [host] [port]
         // - [host] [port] (describe)
+        if (args.Length > 0 && string.Equals(args[0], "live", StringComparison.OrdinalIgnoreCase))
+        {
+            if (args.Length < 2)
+            {
+                Console.Error.WriteLine("Usage: NidarosRTT live <hls-url> [segmentSeconds=8] [host] [port]");
+                return;
+            }
+
+            var url = args[1];
+            int segmentSeconds = 8;
+            int nextIndex = 2;
+            if (args.Length > nextIndex && int.TryParse(args[nextIndex], out var ss))
+            {
+                segmentSeconds = Math.Max(2, ss); // minimum 2s
+                nextIndex++;
+            }
+
+            if (args.Length > nextIndex)
+            {
+                host = args[nextIndex++];
+            }
+
+            if (args.Length > nextIndex && int.TryParse(args[nextIndex], out var tp))
+            {
+                port = tp;
+            }
+
+            Console.WriteLine($"Connecting to Wyoming server at {host}:{port}... (live from {url})");
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+            await LiveTranscribeAsync(url, host, port, segmentSeconds, cts.Token);
+            return;
+        }
         if (args.Length > 0 && string.Equals(args[0], "transcribe", StringComparison.OrdinalIgnoreCase))
         {
             if (args.Length < 2)
@@ -248,6 +283,169 @@ internal static class Program
         }
     }
 
+    private static async Task LiveTranscribeAsync(string hlsUrl, string host, int port, int segmentSeconds, CancellationToken cancellationToken)
+    {
+        const int rate = 16000; // Hz
+        const int width = 2;    // bytes per sample (s16le)
+        const int channels = 1; // mono
+        int bytesPerSecond = rate * width * channels; // 32000
+        int bytesPerSegment = segmentSeconds * bytesPerSecond;
+
+        var psi = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "ffmpeg",
+            Arguments = $"-hide_banner -loglevel error -i {EscapeArg(hlsUrl)} -vn -ac 1 -ar 16000 -f s16le -",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = false,
+            CreateNoWindow = true
+        };
+
+        using var ffmpeg = new System.Diagnostics.Process { StartInfo = psi, EnableRaisingEvents = true };
+        try
+        {
+            if (!ffmpeg.Start())
+            {
+                Console.Error.WriteLine("Failed to start ffmpeg process.");
+                return;
+            }
+
+            var stdout = ffmpeg.StandardOutput.BaseStream;
+            var segmentBuffer = new byte[bytesPerSegment];
+            int segmentIndex = 0;
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                int filled = 0;
+                while (filled < bytesPerSegment && !cancellationToken.IsCancellationRequested)
+                {
+                    int read = await stdout.ReadAsync(segmentBuffer, filled, bytesPerSegment - filled, cancellationToken).ConfigureAwait(false);
+                    if (read == 0)
+                    {
+                        // End of stream
+                        break;
+                    }
+                    filled += read;
+                }
+
+                if (filled == 0)
+                {
+                    // No more audio
+                    break;
+                }
+
+                byte[] payload;
+                if (filled == segmentBuffer.Length)
+                {
+                    payload = segmentBuffer.ToArray();
+                }
+                else
+                {
+                    payload = new byte[filled];
+                    Buffer.BlockCopy(segmentBuffer, 0, payload, 0, filled);
+                }
+
+                // Transcribe this segment
+                var prefix = $"[seg {segmentIndex++} @{DateTimeOffset.Now:HH:mm:ss}]";
+                Console.WriteLine($"{prefix} sending {filled / (double)bytesPerSecond:F1}s of audio");
+                await TranscribeBufferAsync(host, port, payload, rate, width, channels, prefix);
+            }
+
+            try { if (!ffmpeg.HasExited) ffmpeg.Kill(entireProcessTree: true); } catch { /* ignore */ }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Live transcription error: {ex.Message}");
+            try { if (!ffmpeg.HasExited) ffmpeg.Kill(entireProcessTree: true); } catch { /* ignore */ }
+        }
+    }
+
+    private static async Task TranscribeBufferAsync(string host, int port, byte[] audio, int rate, int width, int channels, string? logPrefix = null)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(host, port);
+            using var network = client.GetStream();
+
+            // transcribe
+            await SendHeaderLineAsync(network, new { type = "transcribe" });
+            // start
+            await SendHeaderLineAsync(network, new { type = "audio-start", data = new { rate, width, channels } });
+            // chunk (single payload for the segment)
+            await SendHeaderLineAsync(network, new { type = "audio-chunk", data = new { rate, width, channels }, payload_length = audio.Length });
+            await network.WriteAsync(audio, 0, audio.Length);
+            await network.FlushAsync();
+            // stop
+            await SendHeaderLineAsync(network, new { type = "audio-stop" });
+
+            // read until transcript
+            string collected = string.Empty;
+            while (true)
+            {
+                var line = await ReadLineAsync(network).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(line)) break;
+
+                using var hdrDoc = JsonDocument.Parse(line);
+                var root = hdrDoc.RootElement;
+                var type = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+                int dataLen = root.TryGetProperty("data_length", out var dlEl) && dlEl.TryGetInt32(out var dl) ? dl : 0;
+                string? addJson = null;
+                if (dataLen > 0)
+                {
+                    var addBytes = await ReadExactAsync(network, dataLen).ConfigureAwait(false);
+                    addJson = Encoding.UTF8.GetString(addBytes);
+                }
+
+                if (string.Equals(type, "transcript-chunk", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(addJson))
+                    {
+                        using var addDoc = JsonDocument.Parse(addJson);
+                        if (addDoc.RootElement.TryGetProperty("text", out var textEl))
+                        {
+                            var text = textEl.GetString() ?? string.Empty;
+                            collected += text;
+                            Console.Write(text);
+                        }
+                    }
+                }
+                else if (string.Equals(type, "transcript", StringComparison.OrdinalIgnoreCase))
+                {
+                    string finalText = string.Empty;
+                    if (!string.IsNullOrEmpty(addJson))
+                    {
+                        using var addDoc = JsonDocument.Parse(addJson);
+                        if (addDoc.RootElement.TryGetProperty("text", out var textEl))
+                            finalText = textEl.GetString() ?? string.Empty;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(finalText))
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($"{logPrefix} {finalText}");
+                    }
+                    else if (!string.IsNullOrWhiteSpace(collected))
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($"{logPrefix} {collected}");
+                    }
+                    break;
+                }
+                else if (string.Equals(type, "transcript-stop", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine();
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Segment transcription error: {ex.Message}");
+        }
+    }
+
     private static async Task<string?> ReadLineAsync(Stream stream, int maxBytes = 1_048_576)
     {
         // Reads bytes until '\n' and returns UTF-8 string without the trailing newline
@@ -328,6 +526,19 @@ internal static class Program
                 Buffer.BlockCopy(buffer, 0, last, 0, read);
                 yield return last;
             }
+        }
+    }
+
+    private static string EscapeArg(string arg)
+    {
+        // Minimal escaping for ffmpeg args (avoid shell, direct exec)
+        if (OperatingSystem.IsWindows())
+        {
+            return "\"" + arg.Replace("\"", "\\\"") + "\"";
+        }
+        else
+        {
+            return "\"" + arg.Replace("\"", "\\\"") + "\"";
         }
     }
 }
