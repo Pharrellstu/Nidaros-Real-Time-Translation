@@ -17,4 +17,8 @@
     <ProjectReference Include="..\NidarosRTT.Infrastructure\NidarosRTT.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="models\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

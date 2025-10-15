@@ -114,9 +114,7 @@
         <h1>Live Subtitle Demo</h1>
 
         <div class="video-container">
-            <video-js id="live-video" class="vjs-default-skin vjs-big-play-centered" controls preload="auto" width="960" height="540" data-setup="{}">
-                <!-- IMPORTANT: Update this URL to your HLS stream URL -->
-                <source src="http://10.8.5.38:1935/live/OBSstream/playlist.m3u8" type="application/x-mpegURL">
+            <video-js id="live-video" class="vjs-default-skin vjs-big-play-centered" controls preload="auto" autoplay muted playsinline crossorigin="anonymous" width="960" height="540" data-setup="{}">
                 <p class="vjs-no-js">
                     To view this video please enable JavaScript, and consider upgrading to a
                     web browser that
@@ -149,7 +147,22 @@
             document.addEventListener('DOMContentLoaded', function () {
                 // 1. Initialize Video.js Player
                 const player = videojs('live-video');
-                player.play();
+                // Build HLS URL from current host; must match your Wowza HLS path
+                const hlsUrl = `http://${location.hostname}:1935/live/testStream/playlist.m3u8`;
+                player.src({ src: hlsUrl, type: 'application/x-mpegURL' });
+                player.muted(true);
+                const playPromise = player.play();
+                if (playPromise && typeof playPromise.then === 'function') {
+                    playPromise.catch(err => {
+                        console.warn('Autoplay blocked, waiting for user gesture...', err);
+                        // Show the big play button so user can click to start
+                        player.bigPlayButton.show();
+                    });
+                }
+                player.on('error', () => {
+                    const err = player.error();
+                    console.error('Player error:', err);
+                });
 
                 // 2. Get subtitle elements and toggle
                 const subtitleDisplay = document.getElementById('subtitle-display');
@@ -183,7 +196,7 @@
 
                 // 5. Setup SignalR Connection
                 const connection = new signalR.HubConnectionBuilder()
-                    .withUrl("http://localhost:5032/SubtitlesHub") // This must match the endpoint in Program.cs
+                    .withUrl("/subtitlesHub") // relative path to match Program.cs
                     .withAutomaticReconnect()
                     .build();
 

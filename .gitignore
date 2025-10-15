@@ -49,3 +49,6 @@ _ReSharper*/
 # Others
 *.swp
 *~
+
+# NidarosRTT.API models directory
+NidarosRTT.API/models/*.bin

@@ -8,6 +8,9 @@
 
   <ItemGroup>
     <PackageReference Include="Xabe.FFmpeg" Version="6.0.2" />
+  <PackageReference Include="Xabe.FFmpeg.Downloader" Version="6.0.2" />
+  <PackageReference Include="Whisper.net" Version="1.5.0" />
+  <PackageReference Include="Whisper.net.runtime" Version="1.5.0" />
   </ItemGroup>
 
 </Project>

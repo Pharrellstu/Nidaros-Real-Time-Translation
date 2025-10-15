@@ -12,17 +12,16 @@ public class Program
     public static async Task Main(string[] args)
     {
         // --- Configuration ---
-        var streamUrl = "rtsp://172.20.10.8:1935/live/OBSstream";
-        var whisperCliPath = @"C:\Users\Pharrell\whisper.cpp\build\bin\whisper-cli.exe";
-        var modelPath = @"C:\Users\Pharrell\whisper.cpp\models\ggml-tiny.en.bin";
-        var ffmpegPath = @"C:\ffmpeg\bin";
+        var streamUrl = "http://localhost:1935/live/testStream/playlist.m3u8"; // "rtsp://172.20.10.8:1935/live/OBSstream";
+        var modelPath = Path.Combine(AppContext.BaseDirectory, "models", "ggml-tiny.bin"); // Keep hardcoded-style but portable
 
         var builder = WebApplication.CreateBuilder(args);
 
         // --- Dependency Injection Setup ---
         builder.Services.AddSingleton<AudioProcessingQueue>();
-        builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl, ffmpegPath));
-        builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperCliPath, modelPath));
+        builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl));
+        // Limit CPU threads and set Dutch language for faster, consistent recognition
+        builder.Services.AddSingleton<IWhisperService>(new WhisperService(modelPath, language: "nl", threads: 16));
         builder.Services.AddSignalR();
 
         // 1. Add CORS services and define a policy
@@ -103,7 +102,8 @@ public class Program
 
         // Task 2: Multiple transcription workers
         var transcribeTasks = new List<Task>();
-        int maxConcurrentTranscriptions = 6;
+    // Keep worker count modest to avoid CPU saturation; increase cautiously
+    int maxConcurrentTranscriptions = 2;
         for (int i = 0; i < maxConcurrentTranscriptions; i++)
         {
             transcribeTasks.Add(Task.Run(async () =>
