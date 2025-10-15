@@ -7,7 +7,9 @@ namespace NidarosRTT;
 
 internal static class Program
 {
-    // Simple contract: connect to Wyoming server, send {"type":"describe"}\n and print first info JSON line
+    // Simple contract:
+    // - Default: describe -> prints info JSON
+    // - transcribe <pcmFile> -> streams 16kHz mono s16le PCM audio and prints transcript
     private const string DefaultHost = "127.0.0.1";
     private const int DefaultPort = 10300;
 
@@ -21,19 +23,44 @@ internal static class Program
             port = p;
         }
 
-        if (args.Length > 0)
+        // Commands:
+        // - transcribe <path-to-16k-mono-s16le.pcm> [host] [port]
+        // - [host] [port] (describe)
+        if (args.Length > 0 && string.Equals(args[0], "transcribe", StringComparison.OrdinalIgnoreCase))
         {
-            // Allow override via args: Program [host] [port]
-            host = args[0];
-        }
+            if (args.Length < 2)
+            {
+                Console.Error.WriteLine("Usage: NidarosRTT transcribe <path-to-16k-mono-s16le.pcm> [host] [port]");
+                return;
+            }
 
-        if (args.Length > 1 && int.TryParse(args[1], out var ap))
+            var pcmPath = args[1];
+            if (!File.Exists(pcmPath))
+            {
+                Console.Error.WriteLine($"File not found: {pcmPath}");
+                return;
+            }
+
+            if (args.Length > 2) host = args[2];
+            if (args.Length > 3 && int.TryParse(args[3], out var tp)) port = tp;
+
+            Console.WriteLine($"Connecting to Wyoming server at {host}:{port}...");
+            await TranscribeFileAsync(host, port, pcmPath);
+            return;
+        }
+        else
         {
-            port = ap;
+            if (args.Length > 0) host = args[0];
+            if (args.Length > 1 && int.TryParse(args[1], out var ap2)) port = ap2;
+
+            Console.WriteLine($"Connecting to Wyoming server at {host}:{port}...");
+            await DescribeAsync(host, port);
+            return;
         }
+    }
 
-        Console.WriteLine($"Connecting to Wyoming server at {host}:{port}...");
-
+    private static async Task DescribeAsync(string host, int port)
+    {
         try
         {
             using var client = new TcpClient();
@@ -41,12 +68,7 @@ internal static class Program
             using var network = client.GetStream();
 
             // Send describe request per Wyoming protocol (JSONL)
-            var header = new { type = "describe" };
-            var json = JsonSerializer.Serialize(header);
-            var message = json + "\n";
-            var outBytes = Encoding.UTF8.GetBytes(message);
-            await network.WriteAsync(outBytes, 0, outBytes.Length);
-            await network.FlushAsync();
+            await SendHeaderLineAsync(network, new { type = "describe" });
 
             // Read header line (JSON) and then optional additional data bytes
             var headerLine = await ReadLineAsync(network).ConfigureAwait(false);
@@ -91,6 +113,130 @@ internal static class Program
             }
 
             Console.WriteLine(Encoding.UTF8.GetString(buffer.ToArray()));
+        }
+        catch (SocketException ex)
+        {
+            Console.Error.WriteLine($"Socket error connecting to {host}:{port} - {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+        }
+    }
+
+    private static async Task TranscribeFileAsync(string host, int port, string pcmPath)
+    {
+        const int rate = 16000; // Hz
+        const int width = 2;    // bytes per sample (s16le)
+        const int channels = 1; // mono
+
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(host, port);
+            using var network = client.GetStream();
+
+            // 1) transcribe (optional fields omitted to allow autodetect)
+            await SendHeaderLineAsync(network, new { type = "transcribe" });
+
+            // 2) audio-start
+            await SendHeaderLineAsync(network, new
+            {
+                type = "audio-start",
+                data = new { rate, width, channels }
+            });
+
+            // 3) audio-chunk(s)
+            await foreach (var chunk in ReadFileChunksAsync(pcmPath, 32 * 1024)) // 32KB chunks
+            {
+                await SendHeaderLineAsync(network, new
+                {
+                    type = "audio-chunk",
+                    data = new { rate, width, channels },
+                    payload_length = chunk.Length
+                });
+
+                await network.WriteAsync(chunk, 0, chunk.Length);
+                await network.FlushAsync();
+            }
+
+            // 4) audio-stop
+            await SendHeaderLineAsync(network, new { type = "audio-stop" });
+
+            // 5) Read until transcript received
+            string collected = string.Empty;
+            while (true)
+            {
+                var line = await ReadLineAsync(network).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    Console.Error.WriteLine("Server closed connection or sent empty line before transcript.");
+                    break;
+                }
+
+                using var hdrDoc = JsonDocument.Parse(line);
+                var root = hdrDoc.RootElement;
+                var type = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+                int dataLen = root.TryGetProperty("data_length", out var dlEl) && dlEl.TryGetInt32(out var dl) ? dl : 0;
+                string? addJson = null;
+                if (dataLen > 0)
+                {
+                    var addBytes = await ReadExactAsync(network, dataLen).ConfigureAwait(false);
+                    addJson = Encoding.UTF8.GetString(addBytes);
+                }
+
+                if (string.Equals(type, "transcript-start", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine("Transcript (streaming) started...");
+                }
+                else if (string.Equals(type, "transcript-chunk", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(addJson))
+                    {
+                        using var addDoc = JsonDocument.Parse(addJson);
+                        if (addDoc.RootElement.TryGetProperty("text", out var textEl))
+                        {
+                            var text = textEl.GetString() ?? string.Empty;
+                            collected += text;
+                            Console.Write(text);
+                        }
+                    }
+                }
+                else if (string.Equals(type, "transcript", StringComparison.OrdinalIgnoreCase))
+                {
+                    string finalText = string.Empty;
+                    if (!string.IsNullOrEmpty(addJson))
+                    {
+                        using var addDoc = JsonDocument.Parse(addJson);
+                        if (addDoc.RootElement.TryGetProperty("text", out var textEl))
+                        {
+                            finalText = textEl.GetString() ?? string.Empty;
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(finalText))
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($"Final transcript: {finalText}");
+                    }
+                    else if (!string.IsNullOrWhiteSpace(collected))
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($"Final transcript: {collected}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Final transcript received (empty).");
+                    }
+                    break;
+                }
+                else if (string.Equals(type, "transcript-stop", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Transcript stream stopped.");
+                    break;
+                }
+            }
         }
         catch (SocketException ex)
         {
@@ -154,5 +300,34 @@ internal static class Program
             offset += read;
         }
         return buffer;
+    }
+
+    private static async Task SendHeaderLineAsync(Stream network, object header)
+    {
+        var json = JsonSerializer.Serialize(header);
+        var message = json + "\n";
+        var outBytes = Encoding.UTF8.GetBytes(message);
+        await network.WriteAsync(outBytes, 0, outBytes.Length);
+        await network.FlushAsync();
+    }
+
+    private static async IAsyncEnumerable<byte[]> ReadFileChunksAsync(string path, int chunkSize)
+    {
+        await using var fs = File.OpenRead(path);
+        var buffer = new byte[chunkSize];
+        int read;
+        while ((read = await fs.ReadAsync(buffer, 0, buffer.Length)) > 0)
+        {
+            if (read == buffer.Length)
+            {
+                yield return buffer.ToArray();
+            }
+            else
+            {
+                var last = new byte[read];
+                Buffer.BlockCopy(buffer, 0, last, 0, read);
+                yield return last;
+            }
+        }
     }
 }
