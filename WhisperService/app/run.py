@@ -18,19 +18,20 @@ async def transcribe(file: UploadFile = File(...)):
         f.write(await file.read())
 
     # Run whisper-cli
-    try:
-        result = subprocess.run(
-            [WHISPER_CLI, "--model", MODEL_PATH, temp_path],
-            capture_output=True, text=True, check=True
-        )
-        text = result.stdout
-    except subprocess.CalledProcessError as e:
-        # ---- ADD THESE TWO LINES ----
-        print(f"Whisper-CLI Error: {e.stderr}") # This will print the real error
-        return PlainTextResponse(e.stderr, status_code=500) # Return the real error
-        # -----------------------------
-    finally:
-        os.remove(temp_path)
+        try:
+            result = subprocess.run(
+                [WHISPER_CLI, "--model", MODEL_PATH, temp_path],
+                capture_output=True, text=True, check=True
+            )
+            text = result.stdout
+        except subprocess.CalledProcessError as e:
+            # ---- MODIFY THESE LINES ----
+            error_message = f"Whisper-CLI Error: {e.stderr}"
+            print(error_message) # Log the detailed error to the container's console
+            return PlainTextResponse(error_message, status_code=500) # Return it to the API service
+            # ----------------------------
+        finally:
+            os.remove(temp_path)
 
     return {"text": text}
 
