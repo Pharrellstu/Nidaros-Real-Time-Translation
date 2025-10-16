@@ -39,7 +39,7 @@ EXPOSE 5032
 # Environment variables used by the app (defaults can be overridden at run)
 ENV ASPNETCORE_URLS=http://+:5032 \
     STREAM_URL=rtsp://127.0.0.1/live/OBSstream \
-    WHISPER_CLI_PATH=/opt/whisper/whisper-cli \
+    WHISPER_URL=http://whisper-service:5001/transcribe \
     MODEL_PATH=/opt/whisper/models/ggml-base.en.bin \
     FFMPEG_PATH=/usr/bin/ffmpeg
 

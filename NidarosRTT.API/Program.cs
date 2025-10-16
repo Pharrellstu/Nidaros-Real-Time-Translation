@@ -12,17 +12,18 @@ public class Program
     public static async Task Main(string[] args)
     {
         // --- Configuration ---
-        var streamUrl = "rtsp://172.20.10.8:1935/live/OBSstream";
-        var whisperCliPath = @"C:\Users\Pharrell\whisper.cpp\build\bin\whisper-cli.exe";
-        var modelPath = @"C:\Users\Pharrell\whisper.cpp\models\ggml-tiny.en.bin";
-        var ffmpegPath = @"C:\ffmpeg\bin";
+        var streamUrl = Environment.GetEnvironmentVariable("STREAM_URL")
+                        ?? "rtsp://<your-ip>:1935/live/OBSstream";
+        var whisperUrl = Environment.GetEnvironmentVariable("WHISPER_URL")
+                         ?? "http://whisper-service:5001/transcribe";
+        var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "/usr/bin/ffmpeg";
 
         var builder = WebApplication.CreateBuilder(args);
 
         // --- Dependency Injection Setup ---
         builder.Services.AddSingleton<AudioProcessingQueue>();
         builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl, ffmpegPath));
-        builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperCliPath, modelPath));
+        builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperUrl));
         builder.Services.AddSignalR();
 
         // 1. Add CORS services and define a policy

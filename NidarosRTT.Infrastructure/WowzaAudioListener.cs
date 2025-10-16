@@ -19,7 +19,7 @@ namespace NidarosRTT.Infrastructure
         public WowzaAudioListener(string streamUrl, string ffmpegExecutablePath)
         {
             _streamUrl = streamUrl;
-            _ffmpegPath = Path.Combine(ffmpegExecutablePath, "ffmpeg.exe");
+            _ffmpegPath = ffmpegExecutablePath;
             _tempFolder = Path.Combine(Path.GetTempPath(), "LiveSubtitleTemp");
             Directory.CreateDirectory(_tempFolder);
 
