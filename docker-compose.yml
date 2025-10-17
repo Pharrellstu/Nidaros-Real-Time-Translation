@@ -1,0 +1,79 @@
+name: Wowza Streaming Engine Trial
+services:
+     # The main .NET API
+    api-service:
+      build:
+        context: . # The root directory of your solution
+        dockerfile: NidarosRTT.API/Dockerfile
+      ports:
+        - "5032:5032"
+      environment:
+        # Use the service name 'whisper-service' for communication inside Docker
+        - WHISPER_URL=http://whisper-service:5001/transcribe
+        - STREAM_URL=rtsp://host.docker.internal:1935/live/OBSstream
+        # The rest of your environment variables
+        - ASPNETCORE_URLS=http://+:5032
+        - FFMPEG_PATH=/usr/bin/ffmpeg
+      depends_on:
+        - whisper-service
+      restart: unless-stopped
+      
+    trial:
+        hostname: wse.docker
+        image: wowza/wowza-streaming-engine:latest-trial
+        environment:
+            - WSE_LICENSE_KEY=${WSE_LICENSE_KEY}
+            - ADMIN_USER=${ADMIN_USERNAME}
+            - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+            - IPWHITELIST=*
+            - TRANSCODER=disabled #enabled | disabled | remove to not change
+            - LOG_LEVEL=WARN #DEBUG INFO WARN ERROR
+            - SIMU_LIVE=enabled #enabled | disabled | remove to not change
+        #to persist the configurations between starts of Wowza Streaming Engine, uncomment the lines below:
+        # volumes:
+        #  - ./wse/applications:/usr/local/WowzaStreamingEngine/applications
+        #  - ./wse/conf:/usr/local/WowzaStreamingEngine/conf
+        #  - ./wse/content:/usr/local/WowzaStreamingEngine/content
+        #  - ./wse/transcoder:/usr/local/WowzaStreamingEngine/transcoder
+        ports:
+            - 80:80
+            - 443:443
+            - 1935:1935
+            - 8087:8087
+            - 6970-6999:6970-6999/udp
+            - 10000:10000/udp
+
+    manager:
+        hostname: wsem.docker
+        image: wowza/wowza-streaming-engine-manager:latest
+        environment:
+            - LOG_LEVEL=WARN #DEBUG INFO WARN ERROR
+            - WSE_HOST=http://wse.docker:8087
+        ports:
+            - 8088:8080
+
+    faster-whisper:
+      image: lscr.io/linuxserver/faster-whisper:latest
+      container_name: faster-whisper
+      environment:
+        - PUID=1000
+        - PGID=1000
+        - TZ=Europe/Amsterdam
+        - WHISPER_MODEL=base      # or small/large-v3 depending on your needs
+        - WHISPER_LANG=nl           # 'nl' for Dutch language model
+        - WHISPER_BEAM=5            # optional beam size, higher improves accuracy but uses more resources
+        - LOG_LEVEL=full            # optional logging level
+      volumes:
+        - ./faster-whisper/data:/config
+      ports:
+        - 10300:10300
+      restart: unless-stopped
+      # Uncomment and configure the following for Nvidia GPU support:
+      # runtime: nvidia
+      # deploy:
+      #   resources:
+      #     reservations:
+      #       devices:
+      #         - driver: nvidia
+      #           count: all
+      #           capabilities: [gpu]
