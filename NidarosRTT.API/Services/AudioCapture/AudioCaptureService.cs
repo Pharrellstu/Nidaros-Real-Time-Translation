@@ -133,10 +133,10 @@ public static class AudioCaptureService
         await CaptureAudioSegment(hlsUrl, Path.Combine(outputDir, "test_audio_5s.wav"), 5);
 
         Console.WriteLine();
-        Console.WriteLine("✓ Audio capture tests completed!");
+        Console.WriteLine("Audio capture tests done");
         Console.WriteLine();
         Console.WriteLine("WAV files saved to: /app/output/");
-        Console.WriteLine("Check your host machine's AudioCapture/output/ folder for:");
+        Console.WriteLine("Check AudioCapture/output/ folder for:");
         Console.WriteLine("  - test_audio_10s.wav");
         Console.WriteLine("  - test_audio_5s.wav");
 
@@ -163,7 +163,7 @@ public static class AudioCaptureService
             }
         }
 
-        Console.WriteLine($"All {count} segments completed!");
+        Console.WriteLine($"All {count} segments done");
     }
 
     static async Task RunContinuousCapture(string streamUrl, string outputDir, int durationSeconds, int maxSegments)
@@ -178,7 +178,7 @@ public static class AudioCaptureService
 
         try
         {
-            Console.WriteLine($"🎵 Starting stream-synchronized capture from {streamType}...");
+            Console.WriteLine($"Starting stream-synchronized capture from {streamType}...");
             Console.WriteLine($"Segment pattern: {Path.GetFileName(segmentPattern)}");
 
             // Use FFmpeg's segment muxer for precise, stream-synchronized segmentation
@@ -203,11 +203,11 @@ public static class AudioCaptureService
                 throw new Exception("FFmpeg segmentation process failed");
             }
 
-            Console.WriteLine("✅ Stream segmentation completed successfully");
+            Console.WriteLine("Stream segmentation completed");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Segmentation failed: {ex.Message}");
+            Console.WriteLine($"Segmentation failed: {ex.Message}");
             throw;
         }
     }
@@ -263,18 +263,18 @@ public static class AudioCaptureService
     {
         try
         {
-            Console.Write($"  Testing connection to: {hlsUrl}... ");
+            Console.Write($"Testing connection to: {hlsUrl}... ");
 
             using var httpClient = new HttpClient();
             httpClient.Timeout = TimeSpan.FromSeconds(10);
 
             var response = await httpClient.GetAsync(hlsUrl);
-            Console.WriteLine($"✓ HTTP Status: {response.StatusCode}");
+            Console.WriteLine($"HTTP Status: {response.StatusCode}");
 
             if (response.IsSuccessStatusCode)
             {
                 var content = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"  ✓ Content length: {content.Length} characters");
+                Console.WriteLine($"Content length: {content.Length} characters");
             }
         }
         catch (Exception ex)
@@ -289,7 +289,7 @@ public static class AudioCaptureService
         try
         {
             var streamType = streamUrl.StartsWith("rtmp://") ? "RTMP" : "HLS";
-            Console.WriteLine($"  🎵 Capturing {durationSeconds}s from {streamType} stream...");
+            Console.WriteLine($"Capturing {durationSeconds}s from {streamType} stream...");
 
             // Use stream-synchronized capture to prevent timing drift
             var success = await FFMpegArguments
@@ -324,13 +324,14 @@ public static class AudioCaptureService
                     var isDuplicate = await CheckForDuplicateContent(outputFile);
                     if (isDuplicate)
                     {
-                        Console.WriteLine($"⚠️  Duplicate content detected, removing: {Path.GetFileName(outputFile)}");
+                        Console.WriteLine($"Duplicate content detected, removing: {Path.GetFileName(outputFile)}");
                         File.Delete(outputFile);
                         throw new Exception("Duplicate audio content detected - skipping this segment");
                     }
                     
                     // Show success and file size
-                    Console.WriteLine($"✅ Created: {Path.GetFileName(outputFile)} ({fileInfo.Length} bytes)");
+                    Console.WriteLine($"Created: {Path.GetFileName(outputFile)} ({fileInfo.Length} bytes)");
+                    await ProcessAudioWithWhisper(outputFile);
                 }
                 else
                 {
@@ -410,6 +411,20 @@ public static class AudioCaptureService
         catch
         {
             return new byte[0];
+        }
+    }
+
+    private static async Task ProcessAudioWithWhisper(string audioPath)
+    {
+        try
+        {
+            // Files are already in the shared volume (/app/output)
+            // The whisper service will pick them up automatically
+            Console.WriteLine($"Audio file ready for transcription: {Path.GetFileName(audioPath)}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error processing audio with Whisper: {ex.Message}");
         }
     }
 }
