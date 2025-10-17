@@ -1,13 +1,14 @@
 # Nidaros Real-Time Translation
 
-This is a tool for capturing audio from HLS streams and converting it to text using Whisper.
+# NidarosRTT
 
-## What it does
+A new .NET Web API project initialized with proper solution structure.
 
-- Captures audio from your stream in 5 second chunks
-- Uses Whisper AI to make text from the audio
-- Everything runs in Docker containers
-- Old audio files get deleted automatically
+## Structure
+- **NidarosRTT.API** – Entry point for real-time translation via REST or WebSocket (SignalR).
+- **NidarosRTT.Core** – Business logic and data models.
+- **NidarosRTT.Infrastructure** – External integrations (speech-to-text, translation APIs).
+- **NidarosRTT.Tests** – Unit tests for core logic.
 
 ## You need
 
@@ -16,13 +17,26 @@ This is a tool for capturing audio from HLS streams and converting it to text us
 
 ## How to start (minimum steps)
 
-### 1. Make .env file
+### 1. Set up Wowza
+Make sure you are not running Wowza on your computer, if you are stop it following these instructions:
+https://www.wowza.com/docs/how-to-start-and-stop-wowza-streaming-engine-software
 
-Create `.env` file in project folder:
-```bash
-HLS_STREAM_URL=http://your-stream-url-here/playlist.m3u8
-RTMP_STREAM_URL=rtmp://your-stream-url-here/stream
-```
+Log in to Wowza on localost:8088
+Create a new Application, select LIVE single server or origin
+Name it wowzaApp
+In Setup, in Playback Types, tick Apple HLS and Adobe RTMP
+In source security access the  Source Authentication page via the link in the description and over there add a source name and source password
+Click Test Playback..., fill in a Stream name with CPHTD and copy the RTMP and HLS URLs
+Paste them in the .env file
+Paste the RTMP url (should look like rtmp://wse-trial.wowza.com:1935/wowzaApp) in OBS and make sure it you have followed the instructions given by the client and that the stream key is CPHTD, Use authentication is ticked and the username and password from the Source Authentication page are filled in
+
+Add the HLS link to NidarosRTT.API\wwwroot\hls_player.html
+
+Access the player at http://localhost:5000/hls_player.html to check that the stream works
+
+### 2. Make .env file
+
+Create `.env` file in the root folder by copying the .env.example and filling in all of the constants
 
 ### 2. Start everything
 
