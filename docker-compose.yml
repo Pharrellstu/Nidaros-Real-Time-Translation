@@ -8,14 +8,16 @@ services:
       ports:
         - "5032:5032"
       environment:
-        # Use the service name 'whisper-service' for communication inside Docker
-        - WHISPER_URL=http://whisper-service:5001/transcribe
-        - STREAM_URL=rtsp://host.docker.internal:1935/live/OBSstream
+        # Wyoming (faster-whisper) settings inside Docker network
+        - WYOMING_HOST=faster-whisper
+        - WYOMING_PORT=10300
+        - STREAM_URL=rtsp://wse.docker:1935/live/OBSstream
         # The rest of your environment variables
         - ASPNETCORE_URLS=http://+:5032
         - FFMPEG_PATH=/usr/bin/ffmpeg
       depends_on:
-        - whisper-service
+        - trial
+        - faster-whisper
       restart: unless-stopped
       
     trial:
@@ -42,6 +44,10 @@ services:
             - 8087:8087
             - 6970-6999:6970-6999/udp
             - 10000:10000/udp
+        networks:
+          default:
+            aliases:
+              - wse.docker
 
     manager:
         hostname: wsem.docker
