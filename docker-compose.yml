@@ -26,5 +26,39 @@ services:
       - ASPNETCORE_URLS=http://+:5032
       - FFMPEG_PATH=/usr/bin/ffmpeg
     depends_on:
-      - whisper-service # Ensures the whisper service starts first
+      - whisper-service
+    restart: unless-stopped
+
+  # Wowza Streaming Engine Trial
+  wowza-trial:
+    hostname: wse.docker
+    image: wowza/wowza-streaming-engine:latest-trial
+    environment:
+      - WSE_LICENSE_KEY=${WSE_LICENSE_KEY}
+      - ADMIN_USER=${ADMIN_USERNAME}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - IPWHITELIST=*
+      - TRANSCODER=disabled
+      - LOG_LEVEL=WARN
+      - SIMU_LIVE=enabled
+    ports:
+      - "80:80"
+      - "443:443"
+      - "1935:1935"
+      - "8087:8087"
+      - "6970-6999:6970-6999/udp"
+      - "10000:10000/udp"
+    restart: unless-stopped
+
+  # Wowza Streaming Engine Manager
+  wowza-manager:
+    hostname: wsem.docker
+    image: wowza/wowza-streaming-engine-manager:latest
+    environment:
+      - LOG_LEVEL=WARN
+      - WSE_HOST=http://wse.docker:8087
+    ports:
+      - "8088:8080"
+    depends_on:
+      - wowza-trial
     restart: unless-stopped
