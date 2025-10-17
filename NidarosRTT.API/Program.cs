@@ -88,7 +88,8 @@ public class Program
                     }
                     else
                     {
-                        Console.WriteLine("[CAPTURE] ✗ No audio file captured (returned null)");
+                        Console.WriteLine("[CAPTURE] ✗ No audio file captured (stream may be down). Retrying in 5s...");
+                        await Task.Delay(5000, cts.Token);
                     }
                 }
                 catch (OperationCanceledException) { }
