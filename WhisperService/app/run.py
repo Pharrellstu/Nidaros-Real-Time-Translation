@@ -20,7 +20,7 @@ async def transcribe(file: UploadFile = File(...)):
     # Run whisper-cli
         try:
             result = subprocess.run(
-                [WHISPER_CLI, "--model", MODEL_PATH, temp_path],
+                [WHISPER_CLI, "--model", MODEL_PATH, "--no-timestamps", temp_path], # <--- MODIFIED
                 capture_output=True, text=True, check=True
             )
             text = result.stdout

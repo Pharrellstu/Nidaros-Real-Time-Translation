@@ -34,15 +34,15 @@ namespace NidarosRTT.Infrastructure
             var outputFileName = $"chunk_{DateTime.UtcNow.Ticks}.wav";
             var outputFile = Path.Combine(_tempFolder, outputFileName);
 
-            // Command arguments for ffmpeg
-            // -i: input URL
+            // Updated FFmpeg command for better RTSP handling
+            // -rtsp_transport tcp: use TCP instead of UDP for more reliable RTSP streaming
             // -t 5: duration of 5 seconds
             // -vn: no video
             // -acodec pcm_s16le: standard WAV audio codec
             // -ar 16000: sample rate of 16kHz (standard for speech recognition)
             // -ac 1: mono channel
             // -y: overwrite output file if it exists
-            var arguments = $"-i \"{_streamUrl}\" -t 5 -vn -acodec pcm_s16le -ar 16000 -ac 1 -y \"{outputFile}\"";
+            var arguments = $"-rtsp_transport tcp -i \"{_streamUrl}\" -t 5 -vn -acodec pcm_s16le -ar 16000 -ac 1 -y \"{outputFile}\"";
 
             var processStartInfo = new ProcessStartInfo
             {
@@ -57,13 +57,35 @@ namespace NidarosRTT.Infrastructure
             using var process = new Process { StartInfo = processStartInfo };
 
             process.Start();
+
+            // Capture FFmpeg output for debugging
+            var errorOutput = await process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync(token);
 
             if (process.ExitCode != 0)
             {
-                var error = await process.StandardError.ReadToEndAsync();
-                Console.WriteLine($"[FFMPEG ERROR] {error}");
-                return null; // Return null if capture failed
+                Console.WriteLine($"[FFMPEG ERROR] Exit code: {process.ExitCode}");
+                Console.WriteLine($"[FFMPEG ERROR] {errorOutput}");
+                return null;
+            }
+
+            // Check if file exists and has content
+            if (!File.Exists(outputFile))
+            {
+                Console.WriteLine($"[FFMPEG ERROR] Output file was not created: {outputFile}");
+                return null;
+            }
+
+            var fileInfo = new FileInfo(outputFile);
+            if (fileInfo.Length < 1000) // Less than 1KB is likely empty or corrupted
+            {
+                Console.WriteLine($"[FFMPEG WARNING] Output file is very small ({fileInfo.Length} bytes), may be empty or have no audio");
+                Console.WriteLine($"[FFMPEG DEBUG] Last 500 chars of FFmpeg output:");
+                Console.WriteLine(errorOutput.Length > 500 ? errorOutput.Substring(errorOutput.Length - 500) : errorOutput);
+            }
+            else
+            {
+                Console.WriteLine($"[FFMPEG SUCCESS] Captured {fileInfo.Length} bytes of audio");
             }
 
             return outputFile;
