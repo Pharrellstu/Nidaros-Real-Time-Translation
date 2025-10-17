@@ -9,7 +9,6 @@ RUN apt-get update && \
 # Set working directory and clone the repository
 WORKDIR /opt/whisper
 RUN git clone https://github.com/ggerganov/whisper.cpp.git .
-
 # Build the shared library and the command-line interface
 RUN cmake -B build -DWHISPER_BUILD_SHARED=ON && \
     cmake --build build --config Release
@@ -19,9 +18,9 @@ RUN cmake -B build -DWHISPER_BUILD_SHARED=ON && \
 # Stage 2: Create the final Python runtime image
 FROM python:3.11-slim
 
-# Install runtime dependencies (ffmpeg for audio processing)
+# Install runtime dependencies (ffmpeg and wget for downloading the model)
 RUN apt-get update && \
-    apt-get install -y ffmpeg && \
+    apt-get install -y ffmpeg wget && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled binary and shared libraries from the build stage
@@ -38,9 +37,19 @@ RUN chmod +x /usr/local/bin/whisper-cli && \
 # Set the library path environment variable
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
-# Copy your models and application code
-COPY models /opt/whisper/models
+# --- START CHANGES ---
+
+# Create the models directory
+RUN mkdir -p /opt/whisper/models
+
+# Download the model directly into the image
+# This replaces the old "COPY models /opt/whisper/models" line
+RUN wget -O /opt/whisper/models/ggml-base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+
+# Copy your application code
 COPY app/run.py /opt/whisper/run.py
+
+# --- END CHANGES ---
 
 # Install Python dependencies
 RUN pip install --no-cache-dir fastapi uvicorn python-multipart
