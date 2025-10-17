@@ -21,7 +21,7 @@ public class Program
         // --- Dependency Injection Setup ---
         builder.Services.AddSingleton<AudioProcessingQueue>();
         builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl, ffmpegPath));
-        builder.Services.AddSingleton<IWhisperService>();
+        builder.Services.AddSingleton<IWhisperService, WhisperService>();
         builder.Services.AddSignalR();
 
         // 1. Add CORS services and define a policy
