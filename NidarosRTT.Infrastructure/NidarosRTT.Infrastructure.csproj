@@ -10,4 +10,8 @@
     <PackageReference Include="Xabe.FFmpeg" Version="6.0.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\NidarosRTT.Core\NidarosRTT.Core.csproj" />
+  </ItemGroup>
+
 </Project>
