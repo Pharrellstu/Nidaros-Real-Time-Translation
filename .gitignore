@@ -49,3 +49,13 @@ _ReSharper*/
 # Others
 *.swp
 *~
+
+
+# Python virtual environment
+ctranslate_venv/
+
+# Downloaded library
+CTranslate2/
+
+# Downloaded model
+m2m100_fa_ct2/
