@@ -7,6 +7,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+// Assume IMachineTranslationService and CTranslate2Service are available
 public class Program
 {
     public static async Task Main(string[] args)
@@ -14,9 +15,16 @@ public class Program
         // --- Configuration ---
         var streamUrl = Environment.GetEnvironmentVariable("STREAM_URL")
                         ?? "rtsp://192.168.1.96:1935/live/OBSstream";
+        // FIX: Use localhost or internal Docker network address for the transcription API
         var whisperUrl = Environment.GetEnvironmentVariable("WHISPER_URL")
-                         ?? "http://whisper-service:5001/transcribe";
-        var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "C:/Users/xxxam/Downloads/ffmpeg-8.0-essentials_build/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe";
+                         ?? "http://host.docker.internal:5001/transcribe";
+        var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH")
+                         ?? "C:/Users/xxxam/Downloads/ffmpeg-8.0-essentials_build/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe"; // Corrected Windows path format
+
+        // --- Translation Configuration ---
+        var translationModelPath = Environment.GetEnvironmentVariable("CT2_MODEL_PATH")
+                           ?? Path.Combine(AppContext.BaseDirectory, "m2m100_fa_ct2");
+        var translationWorkers = 4; // Number of dedicated C++ worker threads
 
         var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +32,11 @@ public class Program
         builder.Services.AddSingleton<AudioProcessingQueue>();
         builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl, ffmpegPath));
         builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperUrl));
+
+        // Inject the CTranslate2 C# wrapper service
+        builder.Services.AddSingleton<IMachineTranslationService>(
+            new CTranslate2Service(translationModelPath, translationWorkers));
+
         builder.Services.AddSignalR();
 
         // 1. Add CORS services and define a policy
@@ -31,27 +44,20 @@ public class Program
         {
             options.AddPolicy("AllowAll", policy =>
             {
-                policy.SetIsOriginAllowed(origin => true) // Allow any origin for development
+                policy.SetIsOriginAllowed(origin => true) // Not recommended for production
                       .AllowAnyHeader()
                       .AllowAnyMethod()
-                      .AllowCredentials(); // This is crucial for SignalR
+                      .AllowCredentials();
             });
         });
 
         var app = builder.Build();
 
         // --- Middleware Pipeline ---
-        // Serve the static web interface
         app.UseDefaultFiles();
         app.UseStaticFiles();
-
-        // 2. Apply the CORS policy. The order is important.
         app.UseCors("AllowAll");
-
-        // Map the SignalR Hub
-        app.MapHub<SubtitlesHub>("/subtitlesHub"); // Using camelCase is a common convention for URLs
-
-        // Basic API route
+        app.MapHub<SubtitlesHub>("/subtitlesHub");
         app.MapGet("/", () => "Live Subtitle Translation Service is running.");
 
         // --- Background Service Logic ---
@@ -68,11 +74,14 @@ public class Program
         var whisperService = app.Services.GetRequiredService<IWhisperService>();
         var hubContext = app.Services.GetRequiredService<IHubContext<SubtitlesHub>>();
 
+        // Retrieve the new translation service
+        var translationService = app.Services.GetRequiredService<IMachineTranslationService>();
+
         Console.WriteLine("Starting Live STT Demo...");
         Console.WriteLine($"Listening to stream: {streamUrl}");
         Console.WriteLine("Press Ctrl+C to exit.");
 
-        // Task 1: Capture audio from Wowza stream
+        // Task 1: Capture audio from Wowza stream (Remains unchanged)
         var captureTask = Task.Run(async () =>
         {
             while (!cts.Token.IsCancellationRequested)
@@ -103,7 +112,7 @@ public class Program
             }
         }, cts.Token);
 
-        // Task 2: Multiple transcription workers
+        // Task 2: Multiple transcription and translation workers (CORRECTED)
         var transcribeTasks = new List<Task>();
         int maxConcurrentTranscriptions = 6;
         for (int i = 0; i < maxConcurrentTranscriptions; i++)
@@ -112,42 +121,54 @@ public class Program
             {
                 while (!cts.Token.IsCancellationRequested)
                 {
+                    string audioFile = null; // Declare here to access in catch/finally
                     try
                     {
-                        var audioFile = await processingQueue.DequeueAsync(cts.Token);
+                        // --- STEP 1: DEQUEUE A FILE ---
+                        audioFile = await processingQueue.DequeueAsync(cts.Token);
                         Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(audioFile)}...");
 
-                        var text = await whisperService.TranscribeAsync(audioFile, cts.Token);
+                        // --- STEP 2: TRANSCRIBE (ENGLISH) ---
+                        var englishText = await whisperService.TranscribeAsync(audioFile, cts.Token);
 
-                        if (!string.IsNullOrWhiteSpace(text))
+                        var trimmedEnglish = englishText?.Trim();
+
+                        if (!string.IsNullOrWhiteSpace(trimmedEnglish))
                         {
-                            var trimmedText = text.Trim();
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {trimmedText}");
-                            Console.ResetColor();
+                            // --- STEP 3: TRANSLATE (ENGLISH -> PERSIAN) ---
+                            var persianText = await translationService.TranslateAsync(trimmedEnglish, "fa", cts.Token);
 
-                            // Send to all connected web clients
-                            try
+                            if (!string.IsNullOrWhiteSpace(persianText))
                             {
-                                await hubContext.Clients.All.SendAsync("ReceiveTranscription", trimmedText);
-                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {trimmedText}");
-                            }
-                            catch (Exception signalrEx)
-                            {
-                                Console.ForegroundColor = ConsoleColor.Yellow;
-                                Console.WriteLine($"[SIGNALR ERROR] Failed to send: {signalrEx.Message}");
+                                // --- STEP 4: BROADCAST PERSIAN ---
+                                var finalSubtitle = persianText.Trim();
+
+                                Console.ForegroundColor = ConsoleColor.Magenta;
+                                Console.WriteLine($"[TRANSLATION-{Task.CurrentId}] {DateTime.Now:T} → {finalSubtitle}");
                                 Console.ResetColor();
+
+                                try
+                                {
+                                    await hubContext.Clients.All.SendAsync("ReceiveTranslation", finalSubtitle);
+                                    Console.WriteLine($"[SIGNALR] ✓ Sent translated Persian subtitles to clients.");
+                                }
+                                catch (Exception signalrEx)
+                                {
+                                    Console.ForegroundColor = ConsoleColor.Yellow;
+                                    Console.WriteLine($"[SIGNALR ERROR] Failed to send translation: {signalrEx.Message}");
+                                    Console.ResetColor();
+                                }
+                            }
+                            else
+                            {
+                                // --- STEP 4 (FALLBACK): BROADCAST ENGLISH ---
+                                await hubContext.Clients.All.SendAsync("ReceiveTranscription", trimmedEnglish);
+                                Console.WriteLine($"[PROCESS-{Task.CurrentId}] No translation result, sending original.");
                             }
                         }
                         else
                         {
-                            Console.WriteLine($"[PROCESS-{Task.CurrentId}] No text transcribed (empty result)");
-                        }
-
-                        if (File.Exists(audioFile))
-                        {
-                            File.Delete(audioFile);
-                            Console.WriteLine($"[CLEANUP] Deleted: {Path.GetFileName(audioFile)}");
+                            Console.WriteLine($"[PROCESS-{Task.CurrentId}] No usable text found after transcription.");
                         }
                     }
                     catch (OperationCanceledException) { }
@@ -157,6 +178,25 @@ public class Program
                         Console.WriteLine($"[PROCESS ERROR-{Task.CurrentId}] {ex.Message}");
                         Console.WriteLine($"[PROCESS ERROR-{Task.CurrentId}] {ex.StackTrace}");
                         Console.ResetColor();
+                    }
+                    finally
+                    {
+                        // --- STEP 5: CLEANUP ---
+                        // Use 'finally' to ensure cleanup even if translation/SignalR fails
+                        if (File.Exists(audioFile))
+                        {
+                            try
+                            {
+                                File.Delete(audioFile);
+                                Console.WriteLine($"[CLEANUP] Deleted: {Path.GetFileName(audioFile)}");
+                            }
+                            catch (Exception cleanupEx)
+                            {
+                                Console.ForegroundColor = ConsoleColor.Yellow;
+                                Console.WriteLine($"[CLEANUP ERROR] Failed to delete {Path.GetFileName(audioFile)}: {cleanupEx.Message}");
+                                Console.ResetColor();
+                            }
+                        }
                     }
                 }
             }, cts.Token));

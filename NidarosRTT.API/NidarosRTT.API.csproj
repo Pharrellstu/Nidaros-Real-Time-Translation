@@ -1,9 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +16,9 @@
   <ItemGroup>
     <ProjectReference Include="..\NidarosRTT.Core\NidarosRTT.Core.csproj" />
     <ProjectReference Include="..\NidarosRTT.Infrastructure\NidarosRTT.Infrastructure.csproj" />
+    <ProjectReference Include="..\NidarosRTT.NativeTranslator\NidarosRTT.NativeTranslator.vcxproj" />
   </ItemGroup>
+
+
 
 </Project>
