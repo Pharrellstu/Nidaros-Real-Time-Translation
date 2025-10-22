@@ -1,7 +1,7 @@
 #include "pch.h"
 #include <string>
 #include <vector>
-#include <ctranslate2/translator.h>  // Using single Translator instead of pool
+#include <ctranslate2/translator.h>  // Using single Translator instead of pool since we are missing the translator_pool
 
 #define DLL_EXPORT __declspec(dllexport)
 
@@ -46,13 +46,7 @@ extern "C"
         }
     }
 
-    /**
-     * Translates text from source language to target language.
-     * @param handle: Pointer to the translator instance
-     * @param source_text: Text to translate (space-separated words)
-     * @param target_lang_code: Target language code (e.g., "__en__" for English)
-     * @return: Translated text as a C-string (must be freed with FreeString), or nullptr on failure
-     */
+
     DLL_EXPORT char* Translate(void* handle, const char* source_text, const char* target_lang_code)
     {
         // Validate input parameters
@@ -64,7 +58,6 @@ extern "C"
         auto* translator = static_cast<ctranslate2::Translator*>(handle);
 
         // Tokenize input text by splitting on spaces
-        // NOTE: This is a simple demo. For production, use SentencePiece tokenization!
         std::vector<std::string> input_tokens;
         std::string text(source_text);
         std::string delimiter = " ";
@@ -102,7 +95,7 @@ extern "C"
                 target_prefix_batch
             );
 
-            // Check if translation was successful
+            // check to see if the translation failed or not.
             if (results.empty() || results[0].hypotheses.empty())
             {
                 return nullptr;
@@ -133,15 +126,11 @@ extern "C"
         }
         catch (const std::exception& e)
         {
-            // In production, log the error message: e.what()
+            // In production, log the error message
             return nullptr;
         }
     }
 
-    /**
-     * Frees memory allocated by the Translate function.
-     * @param str_to_free: Pointer to the string that needs to be freed
-     */
     DLL_EXPORT void FreeString(char* str_to_free)
     {
         if (str_to_free != nullptr)
