@@ -4,11 +4,26 @@ import shutil
 import os
 from fastapi.responses import PlainTextResponse
 import uvicorn
+import requests
 
 app = FastAPI()
 
 WHISPER_CLI = "/usr/local/bin/whisper-cli"
 MODEL_PATH = os.environ.get("MODEL_PATH", "/opt/whisper/models/ggml-base.en.bin")
+
+def translate_text(text, source_lang="en", target_lang="nl"):
+    try:
+        response = requests.post(
+            "http://127.0.0.1:5000/translate",
+            headers={"Content-Type": "application/json"},
+            json={"text": text, "from": source_lang, "to": target_lang}
+        )
+        response.raise_for_status()
+        return response.json().get("translation", "")
+    except Exception as e:
+        print("Translation error:", e)
+        return None
+
 
 @app.post("/transcribe")
 async def transcribe(file: UploadFile = File(...)):
@@ -33,7 +48,12 @@ async def transcribe(file: UploadFile = File(...)):
         finally:
             os.remove(temp_path)
 
-    return {"text": text}
+    translated_text = translate_text(text)
+    return {
+        "original_text": text,
+        "translated_text": translated_text
+    }
+
 
 @app.get("/health")
 def health():
