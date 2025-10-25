@@ -93,8 +93,8 @@ Wait for all services to start. You may see some FFmpeg errors from `api-service
 1. Log in to `http://localhost:8080` in your browser.
 2. Select the default "live" application from the Applications menu.
 3. On the overview of the app (NOT on the Monitoring tab) select properties
-4. Search for "cupertinoPlaylistChunkCount", it is in the Cupertino Streaming Packetizer section
-5. Modify it to have the value of 10
+4. Search for "cupertinoChunkDurationTarget", it is in the Cupertino Streaming Packetizer section and modify it to have the value of 3000
+5. Search for "cupertinoPlaylistChunkCount", it is in the Cupertino Streaming Packetizer section and modify it to have the value of 15
 6. Make sure you save and you click the Restart Stream button on the top of the webpage
 
 
