@@ -114,6 +114,7 @@ public class Program
                 {
                     try
                     {
+                        var startTs = DateTime.Now;
                         var audioFile = await processingQueue.DequeueAsync(cts.Token);
                         Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(audioFile)}...");
 
@@ -149,6 +150,9 @@ public class Program
                             File.Delete(audioFile);
                             Console.WriteLine($"[CLEANUP] Deleted: {Path.GetFileName(audioFile)}");
                         }
+                        var endTs = DateTime.Now;
+                        var duration = endTs - startTs;
+                        Console.WriteLine($"[PROCESS-{Task.CurrentId}] Completed in {duration.TotalSeconds:F2}s");
                     }
                     catch (OperationCanceledException) { }
                     catch (Exception ex)
