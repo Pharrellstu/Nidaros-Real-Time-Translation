@@ -1,14 +1,14 @@
 namespace NidarosRTT.Infrastructure
 {
-    public class AudioChunk
+    public class SingleCaptionDto
     {
-        public string FilePath { get; set; }
+        public string text { get; set; }
         public long wallClockStartTS { get; set; }
         public long wallClockEndTS { get; set; }
 
-        public AudioChunk(string filePath, long wallClockStartTS, long wallClockEndTS)
+        public SingleCaptionDto(string text, long wallClockStartTS, long wallClockEndTS)
         {
-            FilePath = filePath;
+            this.text = text;
             this.wallClockStartTS = wallClockStartTS;
             this.wallClockEndTS = wallClockEndTS;
         }

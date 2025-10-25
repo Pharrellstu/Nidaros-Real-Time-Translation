@@ -126,11 +126,14 @@ public class Program
                             Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {trimmedText}");
                             Console.ResetColor();
 
+                            //create DTO
+                            var dto = new SingleCaptionDto(trimmedText, chunk.wallClockStartTS, chunk.wallClockEndTS);
+
                             // Send to all connected web clients
                             try
                             {
-                                await hubContext.Clients.All.SendAsync("ReceiveTranscription", trimmedText);
-                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {trimmedText}");
+                                await hubContext.Clients.All.SendAsync("ReceiveTranscription", dto);
+                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.text}");
                             }
                             catch (Exception signalrEx)
                             {
