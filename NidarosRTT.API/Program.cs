@@ -83,8 +83,8 @@ public class Program
                     var audioFile = await audioListener.CaptureAudioChunkAsync(cts.Token);
                     if (audioFile != null)
                     {
-                        processingQueue.Enqueue(audioFile);
-                        Console.WriteLine($"[CAPTURE] ✓ Queued: {Path.GetFileName(audioFile)}");
+                        processingQueue.Enqueue(audioFile.FilePath);
+                        Console.WriteLine($"[CAPTURE] ✓ Queued: {Path.GetFileName(audioFile.FilePath)}");
                     }
                     else
                     {
