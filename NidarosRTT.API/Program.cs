@@ -83,7 +83,7 @@ public class Program
                     var audioFile = await audioListener.CaptureAudioChunkAsync(cts.Token);
                     if (audioFile != null)
                     {
-                        processingQueue.Enqueue(audioFile.FilePath);
+                        processingQueue.Enqueue(audioFile);
                         Console.WriteLine($"[CAPTURE] ✓ Queued: {Path.GetFileName(audioFile.FilePath)}");
                     }
                     else
@@ -114,10 +114,10 @@ public class Program
                 {
                     try
                     {
-                        var audioFile = await processingQueue.DequeueAsync(cts.Token);
-                        Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(audioFile)}...");
+                        var chunk = await processingQueue.DequeueAsync(cts.Token);
+                        Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(chunk.FilePath)}...");
 
-                        var text = await whisperService.TranscribeAsync(audioFile, cts.Token);
+                        var text = await whisperService.TranscribeAsync(chunk.FilePath, cts.Token);
 
                         if (!string.IsNullOrWhiteSpace(text))
                         {
@@ -144,10 +144,10 @@ public class Program
                             Console.WriteLine($"[PROCESS-{Task.CurrentId}] No text transcribed (empty result)");
                         }
 
-                        if (File.Exists(audioFile))
+                        if (File.Exists(chunk.FilePath))
                         {
-                            File.Delete(audioFile);
-                            Console.WriteLine($"[CLEANUP] Deleted: {Path.GetFileName(audioFile)}");
+                            File.Delete(chunk.FilePath);
+                            Console.WriteLine($"[CLEANUP] Deleted: {Path.GetFileName(chunk.FilePath)}");
                         }
                     }
                     catch (OperationCanceledException) { }

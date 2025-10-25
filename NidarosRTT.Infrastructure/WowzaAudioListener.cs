@@ -5,20 +5,6 @@ using System.Threading.Tasks;
 
 namespace NidarosRTT.Infrastructure
 {
-    public class AudioChunk
-    {
-        public string FilePath { get; set; }
-        public double StreamPosition { get; set; }  // Timestamp for the stream (in seconds)
-        public double Duration { get; set; }        // Duration of the segment (in seconds)
-
-        public AudioChunk(string filePath, double streamPosition, double duration)
-        {
-            FilePath = filePath;
-            StreamPosition = streamPosition;
-            Duration = duration;
-        }
-    }
-
     public interface IWowzaAudioListener
     {
         Task<AudioChunk?> CaptureAudioChunkAsync(CancellationToken token);
@@ -71,6 +57,8 @@ namespace NidarosRTT.Infrastructure
 
             using var process = new Process { StartInfo = processStartInfo };
 
+            //mark wall-clock time when starting the process for timestamping
+            var wallClockStartTS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             process.Start();
 
             // Capture FFmpeg output for debugging
@@ -100,13 +88,10 @@ namespace NidarosRTT.Infrastructure
                 return null;
             }
 
-            //get timing information
-            const double chunkDuration = 5.0; //duration in seconds
-            var streamPosition = 0; //empty for now
-
-            Console.WriteLine($"[FFMPEG SUCCESS] Captured {fileInfo.Length} bytes of audio at stream position {streamPosition:F2}s");
-
-            return new AudioChunk(outputFile, streamPosition, chunkDuration);
+            //get wall-clock end timestamp
+            var wallClockEndTS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            Console.WriteLine($"[AUDIOCHUNK DEBUG] {outputFile}, StartTS: {wallClockStartTS}, EndTS: {wallClockEndTS}, Difference: {(wallClockEndTS - wallClockStartTS)/1000} s");
+            return new AudioChunk(outputFile, wallClockStartTS, wallClockEndTS);
         }
     }
 }
