@@ -88,6 +88,16 @@ docker-compose up --build
 
 Wait for all services to start. You may see some FFmpeg errors from `api-service-1`—this is normal. It just means it's waiting for your stream to start.
 
+### 6\. Inject Wowza artificial delay
+(makes sure that the video/audio stream are displayred with a delay, so our subtitles have time to get generated)
+1. Log in to `http://localhost:8080` in your browser.
+2. Select the default "live" application from the Applications menu.
+3. On the overview of the app (NOT on the Monitoring tab) select properties
+4. Search for "cupertinoPlaylistChunkCount", it is in the Cupertino Streaming Packetizer section
+5. Modify it to have the value of 10
+6. Make sure you save and you click the Restart Stream button on the top of the webpage
+
+
 ### 5\. Start Streaming
 
 Once the containers are running, go to OBS and click **"Start Streaming"**.
