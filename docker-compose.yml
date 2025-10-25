@@ -7,8 +7,8 @@ services:
       context: ./WhisperService # Path to the WhisperService directory
       dockerfile: Dockerfile
     # No need to expose ports to the host if only other containers need it
-    # ports:
-    #   - "5001:5001"
+    ports:
+      - "5001:5001"
     restart: unless-stopped
 
   # The main .NET API
@@ -21,7 +21,7 @@ services:
     environment:
       # Use the service name 'whisper-service' for communication inside Docker
       - WHISPER_URL=http://whisper-service:5001/transcribe
-      - STREAM_URL=rtsp://host.docker.internal:1935/live/OBSstream
+      - STREAM_URL=rtsp://wse-trial.wowza.com:1935/live/OBSstream
       # The rest of your environment variables
       - ASPNETCORE_URLS=http://+:5032
       - FFMPEG_PATH=/usr/bin/ffmpeg
@@ -62,3 +62,4 @@ services:
     depends_on:
       - wowza-trial
     restart: unless-stopped
+
