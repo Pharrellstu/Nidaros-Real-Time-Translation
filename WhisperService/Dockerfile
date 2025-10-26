@@ -1,4 +1,4 @@
-# Stage 1: Build Whisper from source
+
 FROM ubuntu:22.04 AS build
 
 # Install build dependencies
@@ -13,7 +13,6 @@ RUN git clone https://github.com/ggerganov/whisper.cpp.git .
 RUN cmake -B build -DWHISPER_BUILD_SHARED=ON && \
     cmake --build build --config Release
 
-# -----------------------------------------------------------------------------
 
 # Stage 2: Create the final Python runtime image
 FROM python:3.11-slim
@@ -34,22 +33,21 @@ COPY --from=build /opt/whisper/build/ggml/src/libggml*.so* /usr/local/lib/
 RUN chmod +x /usr/local/bin/whisper-cli && \
     ldconfig
 
-# Set the library path environment variable
+# Seting the library path environment variable
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
 # --- START CHANGES ---
 
-# Create the models directory
+# creating the module directory
 RUN mkdir -p /opt/whisper/models
 
-# Download the model directly into the image
+# download the model directly into the image
 # This replaces the old "COPY models /opt/whisper/models" line
 RUN wget -O /opt/whisper/models/ggml-base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
 
-# Copy your application code
+# Copy application code
 COPY app/run.py /opt/whisper/run.py
 
-# --- END CHANGES ---
 
 # Install Python dependencies
 RUN pip install --no-cache-dir fastapi uvicorn python-multipart requests

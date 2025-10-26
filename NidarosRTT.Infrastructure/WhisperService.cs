@@ -43,7 +43,7 @@ namespace NidarosRTT.Infrastructure
             using var jsonDoc = JsonDocument.Parse(responseText);
             var root = jsonDoc.RootElement;
 
-            // Try to get translated_text first, fallback to original_text, then fallback to text
+            // first try to get the translation if not found get the origianl text
             if (root.TryGetProperty("translated_text", out var translatedProp))
             {
                 var translated = translatedProp.GetString();

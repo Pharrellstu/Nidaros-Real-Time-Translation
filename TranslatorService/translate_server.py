@@ -13,12 +13,12 @@ import logging
 import os
 from typing import Optional
 
-# -------------------------
-# Configuration / logging
-# -------------------------
+
+# Configuration and logging credintials
+
 APP_HOST = "0.0.0.0"
 APP_PORT = 5000
-DOWNLOAD_DIR = os.path.join(os.getcwd(), "argospm_downloads")  # downloaded .argosmodel files
+DOWNLOAD_DIR = os.path.join(os.getcwd(), "argospm_downloads")  # downloading argospm module
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 logging.basicConfig(
@@ -29,9 +29,9 @@ logger = logging.getLogger("argos_server")
 
 app = Flask(__name__)
 
-# -------------------------
+
 # Helper functions
-# -------------------------
+# this function is for connecting to argos translator service to access list of available modules
 def _refresh_package_index() -> None:
     """
     Refreshes Argos package index from upstream. This is safe to call
@@ -42,7 +42,7 @@ def _refresh_package_index() -> None:
         argostranslate.package.update_package_index()
     except Exception as e:
         logger.warning("Failed to update package index: %s", e)
-
+#based on our prefrnce we look for a module that translates from_code language  to to_code language
 def find_available_package(from_code: str, to_code: str) -> Optional[argostranslate.package.Package]:
     """
     Returns an available package object from the Argos package index matching
@@ -59,6 +59,7 @@ def find_available_package(from_code: str, to_code: str) -> Optional[argostransl
         logger.exception("Error while searching package index: %s", e)
     return None
 
+#check to see if the specific module has already been installed or not
 def is_model_installed(from_code: str, to_code: str) -> bool:
     """Returns True if the requested model is already installed locally."""
     try:
@@ -71,6 +72,7 @@ def is_model_installed(from_code: str, to_code: str) -> bool:
         logger.warning("Could not list installed packages: %s", e)
     return False
 
+#if the module is not instaleed this function downloads the module and install it
 def install_model(from_code: str, to_code: str) -> bool:
     """
     Download and install the requested model. Returns True on success.
@@ -107,9 +109,9 @@ def install_model(from_code: str, to_code: str) -> bool:
         logger.exception("Failed to download or install model %s->%s: %s", from_code, to_code, e)
         return False
 
-# -------------------------
+
 # Flask route
-# -------------------------
+# Listenning to every request to the translotor server and preparing the answer as JSON string
 @app.route("/translate", methods=["POST"])
 def translate_endpoint():
     """
@@ -139,9 +141,8 @@ def translate_endpoint():
         logger.exception("Translation failed for %s -> %s: %s", from_lang, to_lang, e)
         return jsonify({"error": "internal translation error", "details": str(e)}), 500
 
-# -------------------------
-# CLI entrypoint
-# -------------------------
+#python entry point
+
 if __name__ == "__main__":
     logger.info("Starting Argos Translate server on %s:%d", APP_HOST, APP_PORT)
     app.run(host=APP_HOST, port=APP_PORT)

@@ -8,12 +8,12 @@ import tempfile
 from pathlib import Path
 
 app = FastAPI()
-
+# Configuration
 WHISPER_CLI = "/usr/local/bin/whisper-cli"
 MODEL_PATH = os.environ.get("MODEL_PATH", "/opt/whisper/models/ggml-base.en.bin")
 TRANSLATION_SERVICE_URL = os.environ.get("TRANSLATION_SERVICE_URL", "http://translator:5000/translate")
 
-
+# listening to the request (incoming audio ) and creating the text and getting ready for running the translation
 @app.post("/transcribe")
 async def transcribe(file: UploadFile = File(...)):
     temp_file = None
@@ -63,6 +63,7 @@ async def transcribe(file: UploadFile = File(...)):
             except Exception as e:
                 print(f"Failed to delete temp file: {e}")
 
+#getting the trancribed text and sending request to translator server for translation of the text from english to dutch
 
 def translate_text(text: str, source_lang: str = "en", target_lang: str = "nl"):
     if not text:
@@ -88,7 +89,7 @@ def translate_text(text: str, source_lang: str = "en", target_lang: str = "nl"):
         print(f"Translation service error: {e}")
         return text  # Return original if translation fails
 
-
+# this functions helps us to see if running the server has failed or it has been successfull
 @app.get("/health")
 def health():
     return {"status": "ok"}
