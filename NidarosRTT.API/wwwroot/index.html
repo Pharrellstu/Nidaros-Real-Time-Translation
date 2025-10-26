@@ -205,6 +205,7 @@
             // 3. Load subtitle state from localStorage or default to true
             let subtitlesEnabled = localStorage.getItem('subtitlesEnabled') !== 'false';
             subtitleToggle.checked = subtitlesEnabled;
+            let activeSubtitles = [];
 
             // Apply initial subtitle visibility
             if (!subtitlesEnabled) {
@@ -221,10 +222,34 @@
                 // Show/hide subtitles immediately
                 if (subtitlesEnabled) {
                     subtitleDisplay.classList.remove('hidden');
+                    updateSubtitleDisplay();
                 } else {
                     subtitleDisplay.classList.add('hidden');
+                    subtitleDisplay.textContent = '';
+                    activeSubtitles = [];
                 }
             });
+
+            // Update subtiles state
+            function updateActiveSubtitles() {
+                if (!subtitlesEnabled) {
+                    subtitleDisplay.textContent = '';
+                    return;
+                }
+
+                // Remove expired subtitles
+                const now = Date.now();
+                activeSubtitles = activeSubtitles.filter(caption => caption.clearTime > now);
+
+                // Show up to 2 most recent subtitles
+                if (activeSubtitles.length === 0) {
+                    subtitleDisplay.textContent = '';
+                } else {
+                    const subtitlesToShow = activeSubtitles.slice(-2);
+                    const displayText = subtitlesToShow.map(caption => caption.text).join(' • ');
+                    subtitleDisplay.textContent = displayText;
+                }
+            }
 
             // 5. Setup SignalR Connection
             const connection = new signalR.HubConnectionBuilder()
@@ -257,24 +282,36 @@
                         return;
                     }
 
-                    console.log(`Caption ${text} will appear in ${(Date.now() - startTS + delay - captionReceivedTS) / 1000} s`);
+                    console.log(`Caption ${text} will appear in ${(delay - captionAge) / 1000} s`);
+
+                    const captionData = {
+                        text: text,
+                        displayTime: startTS + delay,
+                        clearTime: endTS + delay
+                    };
+
+                    //if the subtitle is expired, add it right away
+                    const displayDelay = (captionData.displayTime - Date.now() > 0) ? captionData.displayTime - Date.now() : 0;
 
 
                     setTimeout(() => {
-                        console.log(`Caption should appear now, it was received ${Date.now() - captionReceivedTS} ms ago (startTS: ${startTS}, endTS: ${endTS})`);
-                        console.log(`Current player delay: ${delay} seconds`);
-                        // Only update the subtitle display if subtitles are enabled
-                        if (subtitlesEnabled) {
-                            console.log("Displaying subtitle:", text, "for", (endTS - startTS) / 1000, "s");
-                            subtitleDisplay.textContent = text;
-                        }
+                        if (!subtitlesEnabled) return;
+                        console.log(`Caption appearing now, it was received ${displayDelay} ms ago. Content: "${text}"`);
+
+                        activeSubtitles.push(captionData);
+                        updateActiveSubtitles();
+
+                        // Clear subtitle after its duration
+                        const removeDelay = (captionData.clearTime - Date.now() > 0) ? (captionData.clearTime - Date.now()) : 0;
                         setTimeout(() => {
-                            // Clear subtitle after its duration
-                            if (subtitlesEnabled) {
-                                subtitleDisplay.textContent = '';
+
+                            const index = activeSubtitles.indexOf(captionData);
+                            if (index > -1) {
+                                activeSubtitles.splice(index, 1);
+                                updateActiveSubtitles();
                             }
-                        }, endTS - startTS);
-                    }, startTS + delay - captionReceivedTS);
+                        }, removeDelay);
+                    }, displayDelay);
 
                 } catch (error) {
                     console.error("Error processing transcription:", error);
@@ -345,7 +382,7 @@
             let delayMeasurements = [];
             const delayMeasurementsCount = 10;
             const assumedDelay = 10000; // in ms
-            const delayAdjustment = 0; // in ms, if the delay needs manual adjustment
+            const delayAdjustment = 3000; // in ms, if the delay needs manual adjustment
             function getHLSStreamDelay() {
                 const video = document.querySelector('video');
                 if (!video?.buffered.length) {
