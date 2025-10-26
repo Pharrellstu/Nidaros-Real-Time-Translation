@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,6 +19,7 @@
             height: 100vh;
             margin: 0;
         }
+
         .video-container {
             width: 90%;
             max-width: 960px;
@@ -25,6 +27,7 @@
             border-radius: 8px;
             overflow: hidden;
         }
+
         #subtitle-display {
             margin-top: 20px;
             padding: 15px;
@@ -40,9 +43,11 @@
             border: 1px solid #333;
             transition: opacity 0.3s ease;
         }
+
         #subtitle-display.hidden {
             opacity: 0;
         }
+
         .status-dot {
             height: 12px;
             width: 12px;
@@ -51,34 +56,46 @@
             display: inline-block;
             margin-right: 8px;
         }
-        .connected { background-color: #28a745; }
-        .disconnected { background-color: #dc3545; }
+
+        .connected {
+            background-color: #28a745;
+        }
+
+        .disconnected {
+            background-color: #dc3545;
+        }
+
         #connection-status {
             margin-top: 10px;
             font-size: 0.9em;
             color: #aaa;
         }
+
         .subtitle-toggle-container {
             margin-top: 15px;
             display: flex;
             align-items: center;
             gap: 10px;
         }
+
         .toggle-label {
             font-size: 0.9em;
             color: #aaa;
         }
+
         .toggle-switch {
             position: relative;
             display: inline-block;
             width: 50px;
             height: 24px;
         }
+
         .toggle-switch input {
             opacity: 0;
             width: 0;
             height: 0;
         }
+
         .toggle-slider {
             position: absolute;
             cursor: pointer;
@@ -90,6 +107,7 @@
             transition: .4s;
             border-radius: 24px;
         }
+
         .toggle-slider:before {
             position: absolute;
             content: "";
@@ -101,132 +119,269 @@
             transition: .4s;
             border-radius: 50%;
         }
-        input:checked + .toggle-slider {
+
+        input:checked+.toggle-slider {
             background-color: #4CAF50;
         }
-        input:checked + .toggle-slider:before {
+
+        input:checked+.toggle-slider:before {
             transform: translateX(26px);
         }
     </style>
 </head>
-    <body>
 
-        <h1>Live Subtitle Demo</h1>
+<body>
 
-        <div class="video-container">
-            <video-js id="live-video" class="vjs-default-skin vjs-big-play-centered" controls preload="auto" width="960" height="540" data-setup="{}">
-                <!-- IMPORTANT: Update this URL to your HLS stream URL -->
-                <source src="http://wse-trial.wowza.com:1935/live/OBSstream/playlist.m3u8" type="application/x-mpegURL">
-                <p class="vjs-no-js">
-                    To view this video please enable JavaScript, and consider upgrading to a
-                    web browser that
-                    <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-                </p>
-            </video-js>
-        </div>
+    <h1>Live Subtitle Demo</h1>
 
-        <div class="subtitle-toggle-container">
-            <span class="toggle-label">Subtitles</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="subtitle-toggle" checked>
-                <span class="toggle-slider"></span>
-            </label>
-        </div>
+    <div class="video-container">
+        <video-js id="live-video" class="vjs-default-skin vjs-big-play-centered" controls preload="auto" width="960"
+            height="540" data-setup="{}">
+            <!-- IMPORTANT: Update this URL to your HLS stream URL -->
+            <source src="http://wse-trial.wowza.com:1935/live/OBSstream/playlist.m3u8" type="application/x-mpegURL">
+            <p class="vjs-no-js">
+                To view this video please enable JavaScript, and consider upgrading to a
+                web browser that
+                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+            </p>
+        </video-js>
+    </div>
 
-        <div id="subtitle-display">
-            Waiting for transcription...
-        </div>
-        <div id="connection-status">
-            <span id="status-indicator" class="status-dot disconnected"></span>
-            <span>Connecting to subtitle server...</span>
-        </div>
+    <div class="subtitle-toggle-container">
+        <span class="toggle-label">Subtitles</span>
+        <label class="toggle-switch">
+            <input type="checkbox" id="subtitle-toggle" checked>
+            <span class="toggle-slider"></span>
+        </label>
+    </div>
 
-        <!-- Video.js and SignalR scripts -->
-        <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <div id="subtitle-display">
+        Waiting for transcription...
+    </div>
+    <div id="connection-status">
+        <span id="status-indicator" class="status-dot disconnected"></span>
+        <span>Connecting to subtitle server...</span>
+    </div>
 
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                // 1. Initialize Video.js Player
-                const player = videojs('live-video');
-                player.play();
+    <!-- Video.js and SignalR scripts -->
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 
-                // 2. Get subtitle elements and toggle
-                const subtitleDisplay = document.getElementById('subtitle-display');
-                const subtitleToggle = document.getElementById('subtitle-toggle');
-                const connectionStatus = document.getElementById('connection-status');
-                const statusIndicator = document.getElementById('status-indicator');
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // 1. Initialize Video.js Player
+            const player = videojs('live-video');
 
-                // 3. Load subtitle state from localStorage or default to true
-                let subtitlesEnabled = localStorage.getItem('subtitlesEnabled') !== 'false';
-                subtitleToggle.checked = subtitlesEnabled;
+            // Debug: Track stream timing events
+            player.on('playing', () => {
+                console.log('Stream playing at:', {
+                    wallClock: Date.now(),
+                    playerTime: player.currentTime(),
+                    duration: player.duration(),
+                    liveTracker: player.liveTracker ? {
+                        liveCurrentTime: player.liveTracker.liveCurrentTime(),
+                        seekableStart: player.liveTracker.seekableStart(),
+                        seekableEnd: player.liveTracker.seekableEnd(),
+                    } : 'No live tracker'
+                });
+            });
 
-                // Apply initial subtitle visibility
-                if (!subtitlesEnabled) {
+            player.on('loadedmetadata', () => {
+                console.log('Stream metadata loaded:', {
+                    duration: player.duration(),
+                    currentTime: player.currentTime(),
+                });
+            });
+
+            // Start playing
+            player.play();
+
+            // 2. Get subtitle elements and toggle
+            const subtitleDisplay = document.getElementById('subtitle-display');
+            const subtitleToggle = document.getElementById('subtitle-toggle');
+            const connectionStatus = document.getElementById('connection-status');
+            const statusIndicator = document.getElementById('status-indicator');
+
+            // 3. Load subtitle state from localStorage or default to true
+            let subtitlesEnabled = localStorage.getItem('subtitlesEnabled') !== 'false';
+            subtitleToggle.checked = subtitlesEnabled;
+
+            // Apply initial subtitle visibility
+            if (!subtitlesEnabled) {
+                subtitleDisplay.classList.add('hidden');
+            }
+
+            // 4. Handle subtitle toggle
+            subtitleToggle.addEventListener('change', function () {
+                subtitlesEnabled = this.checked;
+
+                // Save preference to localStorage
+                localStorage.setItem('subtitlesEnabled', subtitlesEnabled);
+
+                // Show/hide subtitles immediately
+                if (subtitlesEnabled) {
+                    subtitleDisplay.classList.remove('hidden');
+                } else {
                     subtitleDisplay.classList.add('hidden');
                 }
+            });
 
-                // 4. Handle subtitle toggle
-                subtitleToggle.addEventListener('change', function() {
-                    subtitlesEnabled = this.checked;
+            // 5. Setup SignalR Connection
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("http://localhost:5032/SubtitlesHub") // This must match the endpoint in Program.cs
+                .withAutomaticReconnect()
+                .build();
 
-                    // Save preference to localStorage
-                    localStorage.setItem('subtitlesEnabled', subtitlesEnabled);
+            // Handle incoming transcriptions
+            /*
+                The timing is a bit tricky
+                singleCaptionDTO has startTS and endTS, which are wall-clock (global, not relative to the stream)
+                the live has a starting timestamp of wall-clock type, 
+            */
+            connection.on("ReceiveTranscription", (singleCaptionDTO) => {
+                try {
+                    console.log("Received:", singleCaptionDTO);
+                    const captionReceivedTS = Date.now();
+                    const text = singleCaptionDTO.text ?? "Error receiving text; Null";
+                    const startTS = singleCaptionDTO.wallClockStartTS;
+                    const endTS = singleCaptionDTO.wallClockEndTS;
+                    const captionAge = (captionReceivedTS - startTS);
+                    const delay = getHLSStreamDelay();
 
-                    // Show/hide subtitles immediately
-                    if (subtitlesEnabled) {
-                        subtitleDisplay.classList.remove('hidden');
-                    } else {
-                        subtitleDisplay.classList.add('hidden');
+                    if (isNaN(delay)) {
+                        console.error("Calculated delay is NaN, cannot schedule caption display.");
+                        return;
                     }
-                });
-
-                // 5. Setup SignalR Connection
-                const connection = new signalR.HubConnectionBuilder()
-                    .withUrl("http://localhost:5032/SubtitlesHub") // This must match the endpoint in Program.cs
-                    .withAutomaticReconnect()
-                    .build();
-
-                // Handle incoming transcriptions
-                connection.on("ReceiveTranscription", (text) => {
-                    console.log("Received:", text);
-
-                    // Only update the subtitle display if subtitles are enabled
-                    if (subtitlesEnabled) {
-                        subtitleDisplay.textContent = text;
+                    if (isNaN(startTS) || isNaN(endTS)) {
+                        console.error("Invalid startTS or endTS:", startTS, endTS);
+                        return;
                     }
-                });
 
-                // Update UI based on connection status
-                connection.onreconnecting(error => {
-                    console.warn(`Connection lost: ${error}. Reconnecting...`);
-                    statusIndicator.className = 'status-dot disconnected';
-                    connectionStatus.children[1].textContent = 'Connection lost. Reconnecting...';
-                });
+                    console.log(`Caption ${text} will appear in ${(Date.now() - startTS + delay - captionReceivedTS) / 1000} s`);
 
-                connection.onreconnected(connectionId => {
-                    console.log(`Connection re-established. Connected with ID: ${connectionId}`);
-                    statusIndicator.className = 'status-dot connected';
-                    connectionStatus.children[1].textContent = 'Connected to subtitle server.';
-                });
 
-                // 6. Start the connection
-                async function start() {
-                    try {
-                        await connection.start();
-                        console.log("SignalR Connected.");
-                        statusIndicator.className = 'status-dot connected';
-                        connectionStatus.children[1].textContent = 'Connected to subtitle server.';
-                    } catch (err) {
-                        console.error("SignalR Connection Error: ", err);
-                        statusIndicator.className = 'status-dot disconnected';
-                        connectionStatus.children[1].textContent = 'Failed to connect to subtitle server.';
-                        setTimeout(start, 5000); // Retry connection after 5 seconds
-                    }
+                    setTimeout(() => {
+                        console.log(`Caption should appear now, it was received ${Date.now() - captionReceivedTS} ms ago (startTS: ${startTS}, endTS: ${endTS})`);
+                        console.log(`Current player delay: ${delay} seconds`);
+                        // Only update the subtitle display if subtitles are enabled
+                        if (subtitlesEnabled) {
+                            console.log("Displaying subtitle:", text, "for", (endTS - startTS) / 1000, "s");
+                            subtitleDisplay.textContent = text;
+                        }
+                        setTimeout(() => {
+                            // Clear subtitle after its duration
+                            if (subtitlesEnabled) {
+                                subtitleDisplay.textContent = '';
+                            }
+                        }, endTS - startTS);
+                    }, startTS + delay - captionReceivedTS);
+
+                } catch (error) {
+                    console.error("Error processing transcription:", error);
                 }
 
-                start();
             });
-        </script>
-    </body>
+
+            // Update UI based on connection status
+            connection.onreconnecting(error => {
+                console.warn(`Connection lost: ${error}. Reconnecting...`);
+                statusIndicator.className = 'status-dot disconnected';
+                connectionStatus.children[1].textContent = 'Connection lost. Reconnecting...';
+            });
+
+            connection.onreconnected(connectionId => {
+                console.log(`Connection re-established. Connected with ID: ${connectionId}`);
+                statusIndicator.className = 'status-dot connected';
+                connectionStatus.children[1].textContent = 'Connected to subtitle server.';
+            });
+
+            // 6. Start the connection
+            async function start() {
+                try {
+                    await connection.start();
+                    console.log("SignalR Connected.");
+                    statusIndicator.className = 'status-dot connected';
+                    connectionStatus.children[1].textContent = 'Connected to subtitle server.';
+                } catch (err) {
+                    console.error("SignalR Connection Error: ", err);
+                    statusIndicator.className = 'status-dot disconnected';
+                    connectionStatus.children[1].textContent = 'Failed to connect to subtitle server.';
+                    setTimeout(start, 5000); // Retry connection after 5 seconds
+                }
+            }
+
+            // 7. Delay calculation
+            /*
+                This function manages the delay calculation of the stream.
+
+                Explanation:
+                It measures the buffers and gets a median value from them.
+                It's not pretty, but it works so well it annoys me.
+                It doesn't take into account the network delay from server to client,
+                but that is relatively small compared to the overall HLS delay,
+                and it is similar to the delay from Wowza to the transciption server,
+                so they cancel eachother out.
+
+                There is just no way to measure the latency of the stream drectly.
+                If a method of getting the time since the stream started over here,
+                from the perspective of the player, it would be great,
+                because it would be possible to add it to the EXT-X-PROGRAM-DATE-TIME
+                from the HLS manifest, and find out exactly the delay.
+                
+                Unfortunately, we can only get player.liveTracker.liveCurrentTime()
+                and other methods that are all relative to the start of the player,
+                not to the start of the actual stream.
+
+                Future improvements:
+                For the MVP, at the moment of writing this comment, the plan is to
+                embed the subtitles in the HLS stream itself and that way the frontend
+                will not need to do any syncronization.
+                Otherwise, look into EXT-X-PROGRAM-DATE-TIME, add it as a Wowza module,
+                and start working on that:
+                https://www.wowza.com/docs/how-to-control-display-of-program-date-and-time-headers-in-hls-chunklists-for-live-streams-ext-x-program-date-time
+                Else, consider working on stream segments, I didn't look into that.
+            */
+
+            let delayMeasurements = [];
+            const delayMeasurementsCount = 10;
+            const assumedDelay = 10000; // in ms
+            const delayAdjustment = 0; // in ms, if the delay needs manual adjustment
+            function getHLSStreamDelay() {
+                const video = document.querySelector('video');
+                if (!video?.buffered.length) {
+                    console.error("Can't get the buffered length, will just use the assumedDelay of ", assumedDelay, " ms");
+                    return assumedDelay;
+                }
+
+                // measure single buffer delay
+                const bufferEnd = video.buffered.end(video.buffered.length - 1);
+                const currentTime = video.currentTime;
+                const bufferDelay = (bufferEnd - currentTime) * 1000;
+
+                // average a couple of samples
+                /*
+                    This must be done because the buffer doesn't grow constantly
+                    It receives a segment, after a while it receives another segment
+                    So depending on when this method is called, a single bufferDelay
+                    can be X seconds when called just after a segment is received,
+                    and then X+<segment duration> seconds just before the next segment
+                    is received.
+                */
+                delayMeasurements.push(bufferDelay);
+                // keep just 10 measurements
+                if (delayMeasurements.length > delayMeasurementsCount) delayMeasurements.shift();
+
+                //recursively iterate the measurements to sum up, then divide to get an average
+                var averageDelay = delayMeasurements.reduce((a, b) => a + b) / delayMeasurements.length;
+
+                // Add estimated transmission delay (2-4 seconds)
+                averageDelay += delayAdjustment;
+
+                return averageDelay;
+            }
+            start();
+        });
+    </script>
+</body>
+
 </html>
