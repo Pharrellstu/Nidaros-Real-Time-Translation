@@ -1,14 +1,26 @@
 version: '3.8'
 
 services:
-  # The Whisper Transcription Service (Python/FastAPI)
+  # Argos Translator Service (Python Flask)
+  translator-service:
+    build:
+      context: ./TranslatorService
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  # Whisper Transcription Service (Python/FastAPI)
   whisper-service:
     build:
-      context: ./WhisperService # Path to the WhisperService directory
+      context: ./WhisperService
       dockerfile: Dockerfile
-    # No need to expose ports to the host if only other containers need it
     ports:
       - "5001:5001"
+    environment:
+      - TRANSLATION_SERVICE_URL=http://translator-service:5000/translate
+    depends_on:
+      - translator-service
     restart: unless-stopped
 
   # The main .NET API

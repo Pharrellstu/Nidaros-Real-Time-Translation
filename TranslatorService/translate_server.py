@@ -16,7 +16,7 @@ from typing import Optional
 # -------------------------
 # Configuration / logging
 # -------------------------
-APP_HOST = "127.0.0.1"
+APP_HOST = "0.0.0.0"
 APP_PORT = 5000
 DOWNLOAD_DIR = os.path.join(os.getcwd(), "argospm_downloads")  # downloaded .argosmodel files
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -53,7 +53,7 @@ def find_available_package(from_code: str, to_code: str) -> Optional[argostransl
         available = argostranslate.package.get_available_packages()
         for pkg in available:
             if pkg.from_code == from_code and pkg.to_code == to_code:
-                logger.info("Found package in index: %s -> %s (version=%s)", from_code, to_code, pkg.version)
+                logger.info("Found package in index: %s -> %s", from_code, to_code)
                 return pkg
     except Exception as e:
         logger.exception("Error while searching package index: %s", e)
@@ -87,7 +87,7 @@ def install_model(from_code: str, to_code: str) -> bool:
     try:
         # download to our download folder
         logger.info("Downloading model %s -> %s ...", from_code, to_code)
-        path = pkg.download(destination_path=DOWNLOAD_DIR) if hasattr(pkg, "download") else pkg.download()
+        path = pkg.download()
         logger.info("Downloaded model to: %s", path)
 
         # install from file

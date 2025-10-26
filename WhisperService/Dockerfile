@@ -52,7 +52,7 @@ COPY app/run.py /opt/whisper/run.py
 # --- END CHANGES ---
 
 # Install Python dependencies
-RUN pip install --no-cache-dir fastapi uvicorn python-multipart
+RUN pip install --no-cache-dir fastapi uvicorn python-multipart requests
 
 # Set environment variables for the application
 ENV MODEL_PATH=/opt/whisper/models/ggml-base.en.bin

@@ -11,7 +11,8 @@ app = FastAPI()
 
 WHISPER_CLI = "/usr/local/bin/whisper-cli"
 MODEL_PATH = os.environ.get("MODEL_PATH", "/opt/whisper/models/ggml-base.en.bin")
-TRANSLATION_SERVICE_URL = os.environ.get("TRANSLATION_SERVICE_URL", "http://127.0.0.1:5000/translate")
+TRANSLATION_SERVICE_URL = os.environ.get("TRANSLATION_SERVICE_URL", "http://translator:5000/translate")
+
 
 @app.post("/transcribe")
 async def transcribe(file: UploadFile = File(...)):
@@ -78,19 +79,14 @@ def translate_text(text: str, source_lang: str = "en", target_lang: str = "nl"):
 
         data = response.json()
 
-        # Accept both formats (your translator returns translatedText)
+        # Attempt different field names depending on translator API
         translation = data.get("translated_text") or data.get("translation") or data.get("translatedText")
 
         return translation if translation else text
 
     except Exception as e:
         print(f"Translation service error: {e}")
-        return text
-
-
-    except Exception as e:
-        print(f"Translation service error: {e}")
-        return text  # Return original text if translation fails
+        return text  # Return original if translation fails
 
 
 @app.get("/health")
