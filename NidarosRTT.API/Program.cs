@@ -84,7 +84,7 @@ public class Program
                     if (audioFile != null)
                     {
                         processingQueue.Enqueue(audioFile);
-                        Console.WriteLine($"[CAPTURE] ✓ Queued: {Path.GetFileName(audioFile)}");
+                        Console.WriteLine($"[CAPTURE] ✓ Queued: {Path.GetFileName(audioFile.FilePath)}");
                     }
                     else
                     {
@@ -114,10 +114,10 @@ public class Program
                 {
                     try
                     {
-                        var audioFile = await processingQueue.DequeueAsync(cts.Token);
-                        Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(audioFile)}...");
+                        var chunk = await processingQueue.DequeueAsync(cts.Token);
+                        Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(chunk.FilePath)}...");
 
-                        var text = await whisperService.TranscribeAsync(audioFile, cts.Token);
+                        var text = await whisperService.TranscribeAsync(chunk.FilePath, cts.Token);
 
                         if (!string.IsNullOrWhiteSpace(text))
                         {
@@ -126,11 +126,14 @@ public class Program
                             Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {trimmedText}");
                             Console.ResetColor();
 
+                            //create DTO
+                            var dto = new SingleCaptionDto(trimmedText, chunk.wallClockStartTS, chunk.wallClockEndTS);
+
                             // Send to all connected web clients
                             try
                             {
-                                await hubContext.Clients.All.SendAsync("ReceiveTranscription", trimmedText);
-                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {trimmedText}");
+                                await hubContext.Clients.All.SendAsync("ReceiveTranscription", dto);
+                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.text}");
                             }
                             catch (Exception signalrEx)
                             {
@@ -144,10 +147,10 @@ public class Program
                             Console.WriteLine($"[PROCESS-{Task.CurrentId}] No text transcribed (empty result)");
                         }
 
-                        if (File.Exists(audioFile))
+                        if (File.Exists(chunk.FilePath))
                         {
-                            File.Delete(audioFile);
-                            Console.WriteLine($"[CLEANUP] Deleted: {Path.GetFileName(audioFile)}");
+                            File.Delete(chunk.FilePath);
+                            Console.WriteLine($"[CLEANUP] Deleted: {Path.GetFileName(chunk.FilePath)}");
                         }
                     }
                     catch (OperationCanceledException) { }

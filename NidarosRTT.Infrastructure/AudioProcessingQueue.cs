@@ -10,20 +10,20 @@ namespace NidarosRTT.Infrastructure
     /// </summary>
     public class AudioProcessingQueue
     {
-        private readonly ConcurrentQueue<string> _queue = new();
+        private readonly ConcurrentQueue<AudioChunk> _queue = new();
         private readonly SemaphoreSlim _signal = new(0);
 
-        public void Enqueue(string filePath)
+        public void Enqueue(AudioChunk chunk)
         {
-            _queue.Enqueue(filePath);
+            _queue.Enqueue(chunk);
             _signal.Release();
         }
 
-        public async Task<string> DequeueAsync(CancellationToken token)
+        public async Task<AudioChunk> DequeueAsync(CancellationToken token)
         {
             await _signal.WaitAsync(token);
-            _queue.TryDequeue(out var filePath);
-            return filePath!;
+            _queue.TryDequeue(out var chunk);
+            return chunk!;
         }
     }
 }

@@ -7,7 +7,7 @@ namespace NidarosRTT.Infrastructure
 {
     public interface IWowzaAudioListener
     {
-        Task<string?> CaptureAudioChunkAsync(CancellationToken token);
+        Task<AudioChunk?> CaptureAudioChunkAsync(CancellationToken token);
     }
 
     public class WowzaAudioListener : IWowzaAudioListener
@@ -29,20 +29,21 @@ namespace NidarosRTT.Infrastructure
             }
         }
 
-        public async Task<string?> CaptureAudioChunkAsync(CancellationToken token)
+        public async Task<AudioChunk?> CaptureAudioChunkAsync(CancellationToken token)
         {
             var outputFileName = $"chunk_{DateTime.UtcNow.Ticks}.wav";
             var outputFile = Path.Combine(_tempFolder, outputFileName);
 
-            // Updated FFmpeg command for better RTSP handling
+            // Updated FFmpeg command for better RTSP handling with timing information
             // -rtsp_transport tcp: use TCP instead of UDP for more reliable RTSP streaming
             // -t 5: duration of 5 seconds
             // -vn: no video
             // -acodec pcm_s16le: standard WAV audio codec
             // -ar 16000: sample rate of 16kHz (standard for speech recognition)
             // -ac 1: mono channel
+            // -progress pipe:1: timestamps
             // -y: overwrite output file if it exists
-            var arguments = $"-rtsp_transport tcp -i \"{_streamUrl}\" -t 5 -vn -acodec pcm_s16le -ar 16000 -ac 1 -y \"{outputFile}\"";
+            var arguments = $"-rtsp_transport tcp -i \"{_streamUrl}\" -t 5 -vn -acodec pcm_s16le -ar 16000 -ac 1 -progress pipe:1 -y \"{outputFile}\"";
 
             var processStartInfo = new ProcessStartInfo
             {
@@ -56,6 +57,8 @@ namespace NidarosRTT.Infrastructure
 
             using var process = new Process { StartInfo = processStartInfo };
 
+            //mark wall-clock time when starting the process for timestamping
+            var wallClockStartTS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             process.Start();
 
             // Capture FFmpeg output for debugging
@@ -82,13 +85,13 @@ namespace NidarosRTT.Infrastructure
                 Console.WriteLine($"[FFMPEG WARNING] Output file is very small ({fileInfo.Length} bytes), may be empty or have no audio");
                 Console.WriteLine($"[FFMPEG DEBUG] Last 500 chars of FFmpeg output:");
                 Console.WriteLine(errorOutput.Length > 500 ? errorOutput.Substring(errorOutput.Length - 500) : errorOutput);
-            }
-            else
-            {
-                Console.WriteLine($"[FFMPEG SUCCESS] Captured {fileInfo.Length} bytes of audio");
+                return null;
             }
 
-            return outputFile;
+            //get wall-clock end timestamp
+            var wallClockEndTS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            Console.WriteLine($"[AUDIOCHUNK DEBUG] {outputFile}, StartTS: {wallClockStartTS}, EndTS: {wallClockEndTS}, Difference: {(wallClockEndTS - wallClockStartTS)/1000} s");
+            return new AudioChunk(outputFile, wallClockStartTS, wallClockEndTS);
         }
     }
 }
