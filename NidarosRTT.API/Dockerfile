@@ -8,7 +8,7 @@ COPY NidarosRTT.API/*.csproj NidarosRTT.API/
 COPY NidarosRTT.Core/*.csproj NidarosRTT.Core/
 COPY NidarosRTT.Infrastructure/*.csproj NidarosRTT.Infrastructure/
 
-# Restore (restore only the projects referenced)
+# Restore only the projects referenced
 WORKDIR /src/NidarosRTT.API
 RUN dotnet restore "NidarosRTT.API.csproj"
 
@@ -24,24 +24,41 @@ RUN dotnet publish "NidarosRTT.API.csproj" -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 
-# Install FFmpeg in the runtime stage
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# Install FFmpeg and RNNoise dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    wget \
+    git \
+    build-essential \
+    autoconf \
+    automake \
+    libtool \
+    pkg-config \
+    libsndfile1-dev && \
+    rm -rf /var/lib/apt/lists/*
+    
+# Build RNNoise from source
+RUN git clone https://github.com/xiph/rnnoise.git /tmp/rnnoise && \
+    cd /tmp/rnnoise && \
+    ./autogen.sh && ./configure && make && \
+    cp /tmp/rnnoise/.libs/rnnoise_demo /app/rnnoise_demo && \
+    chmod +x /app/rnnoise_demo && \
+    rm -rf /tmp/rnnoise
 
-# Create a non-root user for safety (optional)
+# Create non-root user (optional)
 RUN useradd -m appuser
 USER appuser
 
 COPY --from=build /app/publish ./
 
-# Expose default app port (change if your app uses a different port)
+# Expose app port
 EXPOSE 5032
 
-# Environment variables used by the app (defaults can be overridden at run)
+# Environment variables
 ENV ASPNETCORE_URLS=http://+:5032 \
     STREAM_URL=rtsp://127.0.0.1/live/OBSstream \
     WHISPER_URL=http://whisper-service:5001/transcribe \
     MODEL_PATH=/opt/whisper/models/ggml-base.en.bin \
     FFMPEG_PATH=/usr/bin/ffmpeg
-
 
 ENTRYPOINT ["dotnet", "NidarosRTT.API.dll"]
