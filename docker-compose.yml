@@ -21,7 +21,7 @@ services:
     environment:
       # Use the service name 'whisper-service' for communication inside Docker
       - WHISPER_URL=http://whisper-service:5001/transcribe
-      - STREAM_URL=rtsp://host.docker.internal:1935/live/OBSstream
+      - STREAM_URL=rtsp://wowza-trial:1935/live/OBSstream
       # The rest of your environment variables
       - ASPNETCORE_URLS=http://+:5032
       - FFMPEG_PATH=/usr/bin/ffmpeg
