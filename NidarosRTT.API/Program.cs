@@ -13,10 +13,10 @@ public class Program
     {
         // --- Configuration ---
         var streamUrl = Environment.GetEnvironmentVariable("STREAM_URL")
-                        ?? "rtsp://<your-ip>:1935/live/OBSstream";
+                        ?? "rtsp://localhost:1935/live/OBSstream";
         var whisperUrl = Environment.GetEnvironmentVariable("WHISPER_URL")
-                         ?? "http://whisper-service:5001/transcribe";
-        var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "/usr/bin/ffmpeg";
+                         ?? "http://localhost:5001/transcribe";
+        var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "C:/Users/xxxam/Downloads/ffmpeg-8.0-essentials_build/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe";
 
         var builder = WebApplication.CreateBuilder(args);
 
