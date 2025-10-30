@@ -33,7 +33,8 @@ RUN apt-get update && apt-get install -y \
     libtool \
     pkg-config \
     libsndfile1-dev \
-    build-essential && \
+    build-essential \
+    wget && \
     rm -rf /var/lib/apt/lists/*
 
 # Build RNNoise from source
