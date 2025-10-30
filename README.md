@@ -2,7 +2,7 @@
 
 # Nidaros Real-Time Translation (RTT) Service
 
-This project provides a complete, end-to-end system for generating live subtitles from any RTMP video stream. It captures an RTMP stream (e.g., from OBS), uses Wowza Streaming Engine to re-stream it, captures audio chunks with a .NET service, transcribes them using a local Whisper.cpp service, and broadcasts the subtitles to a web client via SignalR.
+This project provides a complete, end-to-end system for generating live subtitles from any RTMP video stream. It captures an RTMP stream (e.g., from OBS), uses Wowza Streaming Engine to re-stream it, captures audio chunks with a .NET service, transcribes them using a local faster-whisper service (CTranslate2 optimized), and broadcasts the subtitles to a web client via SignalR.
 
 ## Features
 
@@ -12,7 +12,7 @@ This project provides a complete, end-to-end system for generating live subtitle
     * Manages a job queue for transcription tasks.
     * Serves a simple HTML/JS web client.
     * Hosts a SignalR hub to broadcast transcriptions.
-* **Whisper (`whisper-service`):** A lightweight Python/FastAPI service that wraps the `whisper.cpp` binary for fast, local transcription.
+* **Faster-Whisper (`whisper-service`):** A lightweight Python/FastAPI service using the faster-whisper library for fast, optimized local transcription with CTranslate2.
 * **Web Client:** A simple `index.html` page that plays the HLS stream and displays the live subtitles.
 
 ## Project Structure

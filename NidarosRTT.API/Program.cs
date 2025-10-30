@@ -26,6 +26,9 @@ public class Program
         builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperUrl));
         builder.Services.AddSignalR();
 
+        // Add HttpClient for HLS proxy to avoid socket exhaustion
+        builder.Services.AddHttpClient();
+
         // 1. Add CORS services and define a policy
         builder.Services.AddCors(options =>
         {
@@ -55,11 +58,11 @@ public class Program
         app.MapGet("/", () => "Live Subtitle Translation Service is running.");
 
         // HLS Proxy endpoints to serve video through port 5032
-        app.MapGet("/hls/{streamName}/playlist.m3u8", async (string streamName, HttpContext context) =>
+        app.MapGet("/hls/{streamName}/playlist.m3u8", async (string streamName, HttpContext context, IHttpClientFactory httpClientFactory) =>
         {
             try
             {
-                using var httpClient = new HttpClient();
+                var httpClient = httpClientFactory.CreateClient();
                 var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/playlist.m3u8";
                 var response = await httpClient.GetAsync(wowzaUrl);
                 
@@ -87,11 +90,11 @@ public class Program
             }
         });
 
-        app.MapGet("/hls/{streamName}/{fileName}", async (string streamName, string fileName, HttpContext context) =>
+        app.MapGet("/hls/{streamName}/{fileName}", async (string streamName, string fileName, HttpContext context, IHttpClientFactory httpClientFactory) =>
         {
             try
             {
-                using var httpClient = new HttpClient();
+                var httpClient = httpClientFactory.CreateClient();
                 var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/{fileName}";
                 var response = await httpClient.GetAsync(wowzaUrl);
                 
