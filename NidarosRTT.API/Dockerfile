@@ -24,24 +24,25 @@ RUN dotnet publish "NidarosRTT.API.csproj" -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 
-# Install FFmpeg and RNNoise dependencies
+# Install FFmpeg and RNNoise build dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
-    wget \
     git \
-    build-essential \
     autoconf \
     automake \
     libtool \
     pkg-config \
-    libsndfile1-dev && \
+    libsndfile1-dev \
+    build-essential && \
     rm -rf /var/lib/apt/lists/*
-    
+
 # Build RNNoise from source
-RUN git clone https://github.com/xiph/rnnoise.git /tmp/rnnoise && \
+RUN git clone --depth=1 https://github.com/xiph/rnnoise.git /tmp/rnnoise && \
     cd /tmp/rnnoise && \
-    ./autogen.sh && ./configure && make && \
-    cp /tmp/rnnoise/.libs/rnnoise_demo /app/rnnoise_demo && \
+    ./autogen.sh && \
+    ./configure && \
+    make && \
+    cp examples/rnnoise_demo /app/rnnoise_demo && \
     chmod +x /app/rnnoise_demo && \
     rm -rf /tmp/rnnoise
 
