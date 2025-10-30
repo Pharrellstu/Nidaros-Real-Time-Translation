@@ -1,0 +1,121 @@
+from fastapi import FastAPI, UploadFile, File, HTTPException
+import os
+import requests
+import tempfile
+from pathlib import Path
+from faster_whisper import WhisperModel
+import uvicorn
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI()
+
+# Configuration
+MODEL_NAME = os.environ.get("MODEL_NAME", "small.en")
+DEVICE = os.environ.get("DEVICE", "cpu")
+COMPUTE_TYPE = os.environ.get("COMPUTE_TYPE", "int8")
+MODEL_DIR = os.environ.get("MODEL_DIR", "/opt/whisper/models")
+TRANSLATION_SERVICE_URL = os.environ.get("TRANSLATION_SERVICE_URL", "http://translator-service:5000/translate")
+
+# Initialize the model globally (load once, use many times)
+logger.info(f"Loading faster-whisper model: {MODEL_NAME} on {DEVICE} with {COMPUTE_TYPE}")
+model = WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE, download_root=MODEL_DIR)
+logger.info("Model loaded successfully")
+
+
+@app.post("/transcribe")
+async def transcribe(file: UploadFile = File(...)):
+    """
+    Transcribe audio file and return both original and translated text.
+    """
+    temp_file = None
+    try:
+        # Save uploaded file to temporary location
+        content = await file.read()
+        file_ext = Path(file.filename).suffix.lower()
+        
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_ext)
+        temp_file.write(content)
+        temp_file.close()
+        
+        logger.info(f"Transcribing file: {file.filename}")
+        
+        # Transcribe using faster-whisper
+        segments, info = model.transcribe(
+            temp_file.name,
+            beam_size=5,
+            language="en",
+            condition_on_previous_text=False,
+            vad_filter=True,  # Enable VAD to filter silence
+            vad_parameters=dict(min_silence_duration_ms=500)
+        )
+        
+        # Join all segments into one text
+        text = " ".join([segment.text.strip() for segment in segments])
+        
+        logger.info(f"[TRANSCRIPTION] Original: {text}")
+        
+        # Translate the text
+        translated_text = translate_text(text)
+        
+        logger.info(f"[TRANSLATION] Translated: {translated_text}")
+        
+        return {
+            "original_text": text,
+            "translated_text": translated_text
+        }
+    
+    except Exception as e:
+        logger.error(f"Transcription error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Transcription error: {str(e)}")
+    
+    finally:
+        # Clean up temporary file
+        if temp_file and os.path.exists(temp_file.name):
+            try:
+                os.unlink(temp_file.name)
+            except Exception as e:
+                logger.error(f"Failed to delete temp file: {e}")
+
+
+def translate_text(text: str, source_lang: str = "en", target_lang: str = "nl"):
+    """
+    Translate text using the translation service.
+    """
+    if not text:
+        return ""
+    
+    try:
+        response = requests.post(
+            TRANSLATION_SERVICE_URL,
+            headers={"Content-Type": "application/json"},
+            json={"text": text, "from": source_lang, "to": target_lang},
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        # Attempt different field names depending on translator API
+        translation = data.get("translated_text") or data.get("translation") or data.get("translatedText")
+        
+        return translation if translation else text
+    
+    except Exception as e:
+        logger.error(f"Translation service error: {e}")
+        return text  # Return original if translation fails
+
+
+@app.get("/health")
+def health():
+    """
+    Health check endpoint.
+    """
+    return {"status": "ok", "model": MODEL_NAME, "device": DEVICE}
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=5001)
