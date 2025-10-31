@@ -248,20 +248,26 @@ public class Program
                             var translatedText = (transcriptionResult.TranslatedText ?? transcriptionResult.OriginalText ?? "").Trim();
 
                             Console.ForegroundColor = ConsoleColor.Green;
-                            // Log both languages
-                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → [ORG] {originalText} [TRN] {translatedText}");
+                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {translatedText}");
                             Console.ResetColor();
 
-                            //create DTO
-                            // MODIFIED: Pass both texts to the DTO
-                            var dto = new SingleCaptionDto(originalText, translatedText, chunk.wallClockStartTS, chunk.wallClockEndTS);
+                            // Create DTO with translation status
+                            var dto = new SingleCaptionDto(
+                                text: translatedText,
+                                originalText: originalText,
+                                translationAvailable: !string.IsNullOrEmpty(transcriptionResult.TranslatedText),
+                                translationStatus: transcriptionResult.TranslationStatus ?? "success",
+                                sourceLanguage: transcriptionResult.SourceLanguage ?? "en",
+                                targetLanguage: transcriptionResult.TargetLanguage ?? "nl",
+                                wallClockStartTS: chunk.wallClockStartTS,
+                                wallClockEndTS: chunk.wallClockEndTS
+                            );
 
                             // Send to all connected web clients
                             try
                             {
                                 await hubContext.Clients.All.SendAsync("ReceiveTranscription", dto);
-                                // Update log message
-                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.originalText} / {dto.translatedText}");
+                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.text}");
                             }
                             catch (Exception signalrEx)
                             {
