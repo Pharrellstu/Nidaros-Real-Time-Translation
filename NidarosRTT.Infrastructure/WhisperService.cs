@@ -27,12 +27,18 @@ namespace NidarosRTT.Infrastructure
         {
             if (!System.IO.File.Exists(audioFilePath))
                 return null;
+            
+            //clean audio first 
+            var noiseReducer = new NoiseReductionService();
+            string cleanedPath = await noiseReducer.CleanAudioAsync(audioFilePath);
+            if (!File.Exists(cleanedPath))
+                cleanedPath = audioFilePath;
 
-            using var fileStream = System.IO.File.OpenRead(audioFilePath);
+            using var fileStream = System.IO.File.OpenRead(cleanedPath);
             using var content = new MultipartFormDataContent();
             var streamContent = new StreamContent(fileStream);
             streamContent.Headers.ContentType = MediaTypeHeaderValue.Parse("audio/wav");
-            content.Add(streamContent, "file", System.IO.Path.GetFileName(audioFilePath));
+            content.Add(streamContent, "file", System.IO.Path.GetFileName(cleanedPath));
 
             var response = await _httpClient.PostAsync(_whisperUrl, content, token);
             response.EnsureSuccessStatusCode();
