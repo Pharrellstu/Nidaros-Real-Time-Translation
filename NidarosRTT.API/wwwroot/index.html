@@ -41,11 +41,28 @@
             font-weight: 500;
             color: #ffffff;
             border: 1px solid #333;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.3s ease, font-size 0.2s ease;
         }
 
         #subtitle-display.hidden {
             opacity: 0;
+        }
+
+        /* Subtitle Size Classes */
+        #subtitle-display.size-small {
+            font-size: 1em;
+        }
+
+        #subtitle-display.size-medium {
+            font-size: 1.25em;
+        }
+
+        #subtitle-display.size-normal {
+            font-size: 1.5em;
+        }
+
+        #subtitle-display.size-large {
+            font-size: 2em;
         }
 
         .status-dot {
@@ -136,7 +153,128 @@
             transform: translateX(26px);
         }
 
-        /* NEW: Styles for the language selector */
+        /* Translation service warning banner */
+        .translation-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #ff9800;
+            color: #000;
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.95em;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            z-index: 9999;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        .translation-warning.show {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .warning-icon {
+            margin-right: 8px;
+            font-size: 1.2em;
+        }
+
+        /* Dutch-only indicator in subtitles */
+        .subtitle-language-tag {
+            display: inline-block;
+            background-color: #ff9800;
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        /* Subtitle Size Control Button */
+        .size-control-container {
+            position: relative;
+            display: inline-block;
+            margin-left: auto;
+        }
+
+        .size-control-btn {
+            background-color: #333;
+            color: #e0e0e0;
+            border: 1px solid #555;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.2s ease;
+        }
+
+        .size-control-btn:hover {
+            background-color: #444;
+        }
+        
+        .size-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            margin-bottom: 8px;
+            background-color: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 8px 0;
+            min-width: 150px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 1000;
+        }
+
+        .size-dropdown.show {
+            display: block;
+        }
+
+        .size-option {
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #e0e0e0;
+        }
+
+        .size-option:hover {
+            background-color: #3a3a3a;
+        }
+
+        .size-option.active {
+            background-color: #4CAF50;
+            color: #fff;
+        }
+
+        .size-option .checkmark {
+            display: none;
+            margin-left: 10px;
+        }
+
+        .size-option.active .checkmark {
+            display: inline;
+        }
+
+        /* Styles for the language selector */
         .language-selector-container {
             display: flex;
             align-items: center;
@@ -156,7 +294,13 @@
 
 <body>
 
-<h1>Live Subtitle Demo</h1>
+    <!-- Translation Service Warning Banner -->
+    <div id="translation-warning" class="translation-warning">
+        <span class="warning-icon">⚠️</span>
+        <span id="warning-message">Translation Service Unavailable - Showing Original Captions Only</span>
+    </div>
+
+    <h1>Live Subtitle Demo</h1>
 
 <div class="video-container">
     <video-js id="live-video" class="vjs-default-skin vjs-big-play-centered" controls preload="auto" width="960"
@@ -179,6 +323,32 @@
             <input type="checkbox" id="subtitle-toggle" checked>
             <span class="toggle-slider"></span>
         </label>
+        
+        <!-- Subtitle Size Control -->
+        <div class="size-control-container">
+            <button class="size-control-btn" id="size-control-btn" title="Change subtitle size">
+                <span>📏</span>
+                <span id="current-size-label">Normal</span>
+            </button>
+            <div class="size-dropdown" id="size-dropdown">
+                <div class="size-option" data-size="small">
+                    <span>Small</span>
+                    <span class="checkmark">✓</span>
+                </div>
+                <div class="size-option" data-size="medium">
+                    <span>Medium</span>
+                    <span class="checkmark">✓</span>
+                </div>
+                <div class="size-option active" data-size="normal">
+                    <span>Normal</span>
+                    <span class="checkmark">✓</span>
+                </div>
+                <div class="size-option" data-size="large">
+                    <span>Large</span>
+                    <span class="checkmark">✓</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- NEW: Language Selector HTML -->
@@ -235,16 +405,69 @@
         // 2. Get subtitle elements and toggle
         const subtitleDisplay = document.getElementById('subtitle-display');
         const subtitleToggle = document.getElementById('subtitle-toggle');
-        const languageSelect = document.getElementById('language-select'); // NEW
+        const languageSelect = document.getElementById('language-select');
         const connectionStatus = document.getElementById('connection-status');
         const statusIndicator = document.getElementById('status-indicator');
+        const translationWarning = document.getElementById('translation-warning');
+        const warningMessage = document.getElementById('warning-message');
+
+        // Translation service status
+        let translationServiceAvailable = true;
 
         // 3. Load subtitle state from localStorage or default to true
         let subtitlesEnabled = localStorage.getItem('subtitlesEnabled') !== 'false';
-        let selectedLanguage = localStorage.getItem('selectedLanguage') || 'translated'; // NEW
+        let selectedLanguage = localStorage.getItem('selectedLanguage') || 'translated';
         subtitleToggle.checked = subtitlesEnabled;
-        languageSelect.value = selectedLanguage; // NEW
+        languageSelect.value = selectedLanguage;
         let activeSubtitles = [];
+
+        // Subtitle Size Control
+        const sizeControlBtn = document.getElementById('size-control-btn');
+        const sizeDropdown = document.getElementById('size-dropdown');
+        const sizeOptions = document.querySelectorAll('.size-option');
+        const currentSizeLabel = document.getElementById('current-size-label');
+
+        // Load saved size preference or default to 'normal'
+        let currentSize = localStorage.getItem('subtitleSize') || 'normal';
+        applySubtitleSize(currentSize);
+
+        // Toggle size dropdown
+        sizeControlBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sizeDropdown.classList.toggle('show');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', () => {
+            sizeDropdown.classList.remove('show');
+        });
+
+        // Handle size option clicks
+        sizeOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const size = option.dataset.size;
+                currentSize = size;
+                applySubtitleSize(size);
+                localStorage.setItem('subtitleSize', size);
+                sizeDropdown.classList.remove('show');
+            });
+        });
+
+        function applySubtitleSize(size) {
+            // Remove all size classes
+            subtitleDisplay.classList.remove('size-small', 'size-medium', 'size-normal', 'size-large');
+            // Add the selected size class
+            subtitleDisplay.classList.add(`size-${size}`);
+            
+            // Update active state in dropdown
+            sizeOptions.forEach(opt => opt.classList.remove('active'));
+            document.querySelector(`.size-option[data-size="${size}"]`).classList.add('active');
+            
+            // Update button label
+            const sizeLabel = size.charAt(0).toUpperCase() + size.slice(1);
+            currentSizeLabel.textContent = sizeLabel;
+        }
 
         // Apply initial subtitle visibility
         if (!subtitlesEnabled) {
@@ -261,7 +484,7 @@
             // Show/hide subtitles immediately
             if (subtitlesEnabled) {
                 subtitleDisplay.classList.remove('hidden');
-                updateActiveSubtitles(); // MODIFIED: Fixed function name
+                updateActiveSubtitles();
             } else {
                 subtitleDisplay.classList.add('hidden');
                 subtitleDisplay.textContent = '';
@@ -294,9 +517,9 @@
             } else {
                 // Show up to 2 most recent subtitles
                 const subtitlesToShow = activeSubtitles.slice(-2);
-                // MODIFIED: Choose text based on selectedLanguage property
+                // Choose text based on selectedLanguage property
                 const displayText = subtitlesToShow.map(caption => {
-                    return selectedLanguage === 'original' ? caption.originalText : caption.translatedText;
+                    return selectedLanguage === 'original' ? caption.originalText : caption.text;
                 }).join(' • ');
                 subtitleDisplay.textContent = displayText;
             }
@@ -319,9 +542,9 @@
                 console.log("Received:", singleCaptionDTO);
                 const captionReceivedTS = Date.now();
 
-                // MODIFIED: Get both texts from the DTO
+                // Get both texts from the DTO
                 const originalText = singleCaptionDTO.originalText ?? "Error: originalText null";
-                const translatedText = singleCaptionDTO.translatedText ?? "Error: translatedText null";
+                const translatedText = singleCaptionDTO.text ?? "Error: text null";
 
                 const startTS = singleCaptionDTO.wallClockStartTS;
                 const endTS = singleCaptionDTO.wallClockEndTS;
@@ -337,13 +560,13 @@
                     return;
                 }
 
-                // MODIFIED: Updated log to be language-neutral
+                // Log caption info
                 console.log(`Caption [ORG: ${originalText} / TRN: ${translatedText}] will appear in ${(delay - captionAge) / 1000} s`);
 
-                // MODIFIED: Store both languages
+                // Store both languages
                 const captionData = {
                     originalText: originalText,
-                    translatedText: translatedText,
+                    text: translatedText,
                     displayTime: startTS + delay,
                     clearTime: endTS + delay
                 };
@@ -406,6 +629,22 @@
                 setTimeout(start, 5000); // Retry connection after 5 seconds
             }
         }
+
+        // Handle translation service status changes
+        connection.on("TranslationServiceStatusChanged", (data) => {
+            console.log(`[TRANSLATION SERVICE] Status: ${data.status}, Message: ${data.message}`);
+            
+            if (data.status === "unavailable") {
+                translationServiceAvailable = false;
+                translationWarning.classList.add('show');
+                warningMessage.textContent = data.message || "Translation Service Unavailable - Showing Original Captions Only";
+                console.warn("⚠️ Translation service is DOWN - Original captions will be displayed");
+            } else if (data.status === "available") {
+                translationServiceAvailable = true;
+                translationWarning.classList.remove('show');
+                console.log("✅ Translation service has RECOVERED - Translations will resume");
+            }
+        });
 
         // 7. Delay calculation
         /*

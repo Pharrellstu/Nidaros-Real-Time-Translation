@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using NidarosRTT.Infrastructure;
 using NidarosRTT.API.Hubs;
+using NidarosRTT.Core.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -26,8 +27,26 @@ public class Program
         builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperUrl));
         builder.Services.AddSignalR();
 
-        // Add HttpClient for HLS proxy to avoid socket exhaustion
+        // Add HttpClient for HLS proxy and health monitoring
         builder.Services.AddHttpClient();
+
+        // Translation Health Monitor Configuration
+        var translatorUrl = Environment.GetEnvironmentVariable("TRANSLATOR_URL") ?? "http://localhost:5000";
+        builder.Services.AddSingleton<ITranslationHealthMonitor>(serviceProvider =>
+        {
+            var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+            var logger = serviceProvider.GetRequiredService<ILogger<TranslationHealthMonitor>>();
+            return new TranslationHealthMonitor(
+                httpClientFactory,
+                logger,
+                translatorUrl,
+                healthCheckIntervalSeconds: 15,
+                healthCheckTimeoutSeconds: 10,
+                failureThreshold: 2,
+                circuitBreakerDurationSeconds: 60
+            );
+        });
+        builder.Services.AddHostedService(provider => (TranslationHealthMonitor)provider.GetRequiredService<ITranslationHealthMonitor>());
 
         // 1. Add CORS services and define a policy
         builder.Services.AddCors(options =>
@@ -145,6 +164,29 @@ public class Program
         var processingQueue = app.Services.GetRequiredService<AudioProcessingQueue>();
         var whisperService = app.Services.GetRequiredService<IWhisperService>();
         var hubContext = app.Services.GetRequiredService<IHubContext<SubtitlesHub>>();
+        var healthMonitor = app.Services.GetRequiredService<ITranslationHealthMonitor>();
+
+        // Subscribe to health status changes and broadcast to clients
+        healthMonitor.StatusChanged += async (sender, e) =>
+        {
+            var statusMessage = e.Status == TranslationServiceStatus.Available ? "available" : "unavailable";
+            try
+            {
+                await hubContext.Clients.All.SendAsync("TranslationServiceStatusChanged", new
+                {
+                    status = statusMessage,
+                    message = e.Message,
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                });
+                Console.ForegroundColor = e.Status == TranslationServiceStatus.Available ? ConsoleColor.Green : ConsoleColor.Yellow;
+                Console.WriteLine($"[HEALTH STATUS] Translation service is now: {statusMessage}");
+                Console.ResetColor();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[STATUS BROADCAST ERROR] {ex.Message}");
+            }
+        };
 
         Console.WriteLine("Starting Live STT Demo...");
         Console.WriteLine($"Listening to stream: {streamUrl}");
@@ -206,20 +248,26 @@ public class Program
                             var translatedText = (transcriptionResult.TranslatedText ?? transcriptionResult.OriginalText ?? "").Trim();
 
                             Console.ForegroundColor = ConsoleColor.Green;
-                            // Log both languages
-                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → [ORG] {originalText} [TRN] {translatedText}");
+                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {translatedText}");
                             Console.ResetColor();
 
-                            //create DTO
-                            // MODIFIED: Pass both texts to the DTO
-                            var dto = new SingleCaptionDto(originalText, translatedText, chunk.wallClockStartTS, chunk.wallClockEndTS);
+                            // Create DTO with translation status
+                            var dto = new SingleCaptionDto(
+                                text: translatedText,
+                                originalText: originalText,
+                                translationAvailable: !string.IsNullOrEmpty(transcriptionResult.TranslatedText),
+                                translationStatus: transcriptionResult.TranslationStatus ?? "success",
+                                sourceLanguage: transcriptionResult.SourceLanguage ?? "en",
+                                targetLanguage: transcriptionResult.TargetLanguage ?? "nl",
+                                wallClockStartTS: chunk.wallClockStartTS,
+                                wallClockEndTS: chunk.wallClockEndTS
+                            );
 
                             // Send to all connected web clients
                             try
                             {
                                 await hubContext.Clients.All.SendAsync("ReceiveTranscription", dto);
-                                // Update log message
-                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.originalText} / {dto.translatedText}");
+                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.text}");
                             }
                             catch (Exception signalrEx)
                             {
