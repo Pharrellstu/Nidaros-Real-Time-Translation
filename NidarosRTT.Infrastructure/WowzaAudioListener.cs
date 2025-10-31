@@ -87,6 +87,11 @@ namespace NidarosRTT.Infrastructure
                 Console.WriteLine(errorOutput.Length > 500 ? errorOutput.Substring(errorOutput.Length - 500) : errorOutput);
                 return null;
             }
+            
+            //Noise reduction before returning the chunk
+            var noiseReducer = new NoiseReductionService();
+            outputFile = await noiseReducer.CleanAudioAsync(outputFile);
+            Console.WriteLine($"[NOISE REDUCTION] Cleaned audio saved at: {outputFile}");
 
             //get wall-clock end timestamp
             var wallClockEndTS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
