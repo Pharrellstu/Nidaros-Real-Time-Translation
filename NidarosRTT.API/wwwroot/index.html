@@ -517,9 +517,9 @@
             } else {
                 // Show up to 2 most recent subtitles
                 const subtitlesToShow = activeSubtitles.slice(-2);
-                // MODIFIED: Choose text based on selectedLanguage property
+                // Choose text based on selectedLanguage property
                 const displayText = subtitlesToShow.map(caption => {
-                    return selectedLanguage === 'original' ? caption.originalText : caption.translatedText;
+                    return selectedLanguage === 'original' ? caption.originalText : caption.text;
                 }).join(' • ');
                 subtitleDisplay.textContent = displayText;
             }
@@ -542,9 +542,9 @@
                 console.log("Received:", singleCaptionDTO);
                 const captionReceivedTS = Date.now();
 
-                // MODIFIED: Get both texts from the DTO
+                // Get both texts from the DTO
                 const originalText = singleCaptionDTO.originalText ?? "Error: originalText null";
-                const translatedText = singleCaptionDTO.translatedText ?? "Error: translatedText null";
+                const translatedText = singleCaptionDTO.text ?? "Error: text null";
 
                 const startTS = singleCaptionDTO.wallClockStartTS;
                 const endTS = singleCaptionDTO.wallClockEndTS;
@@ -560,13 +560,13 @@
                     return;
                 }
 
-                // MODIFIED: Updated log to be language-neutral
+                // Log caption info
                 console.log(`Caption [ORG: ${originalText} / TRN: ${translatedText}] will appear in ${(delay - captionAge) / 1000} s`);
 
-                // MODIFIED: Store both languages
+                // Store both languages
                 const captionData = {
                     originalText: originalText,
-                    translatedText: translatedText,
+                    text: translatedText,
                     displayTime: startTS + delay,
                     clearTime: endTS + delay
                 };
