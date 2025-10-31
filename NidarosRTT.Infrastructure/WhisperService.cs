@@ -29,10 +29,13 @@ namespace NidarosRTT.Infrastructure
         {
             if (!System.IO.File.Exists(audioFilePath))
                 return null;
-
-
-            string cleanedPath = audioFilePath;
-
+            
+            //clean audio first 
+            var noiseReducer = new NoiseReductionService();
+            string cleanedPath = await noiseReducer.CleanAudioAsync(audioFilePath);
+            if (!File.Exists(cleanedPath))
+                cleanedPath = audioFilePath;
+                
             using var fileStream = System.IO.File.OpenRead(cleanedPath);
             using var content = new MultipartFormDataContent();
             var streamContent = new StreamContent(fileStream);
