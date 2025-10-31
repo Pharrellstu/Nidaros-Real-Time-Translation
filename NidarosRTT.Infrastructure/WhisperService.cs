@@ -35,8 +35,6 @@ namespace NidarosRTT.Infrastructure
             if (!File.Exists(cleanedPath))
                 cleanedPath = audioFilePath;
                 
-            string cleanedPath = audioFilePath;
-
             using var fileStream = System.IO.File.OpenRead(cleanedPath);
             using var content = new MultipartFormDataContent();
             var streamContent = new StreamContent(fileStream);
