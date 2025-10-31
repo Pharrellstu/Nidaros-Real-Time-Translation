@@ -13,10 +13,10 @@ public class Program
     {
         // --- Configuration ---
         var streamUrl = Environment.GetEnvironmentVariable("STREAM_URL")
-                        ?? "rtsp://<your-ip>:1935/live/OBSstream";
+                        ?? "rtsp://localhost:1935/live/OBSstream";
         var whisperUrl = Environment.GetEnvironmentVariable("WHISPER_URL")
-                         ?? "http://whisper-service:5001/transcribe";
-        var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "/usr/bin/ffmpeg";
+                         ?? "http://localhost:5001/transcribe";
+        var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "C:/Users/xxxam/Downloads/ffmpeg-8.0-essentials_build/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe";
 
         var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +25,9 @@ public class Program
         builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl, ffmpegPath));
         builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperUrl));
         builder.Services.AddSignalR();
+
+        // Add HttpClient for HLS proxy to avoid socket exhaustion
+        builder.Services.AddHttpClient();
 
         // 1. Add CORS services and define a policy
         builder.Services.AddCors(options =>
@@ -53,6 +56,81 @@ public class Program
 
         // Basic API route
         app.MapGet("/", () => "Live Subtitle Translation Service is running.");
+
+        // HLS Proxy endpoints to serve video through port 5032
+        app.MapGet("/hls/{streamName}/playlist.m3u8", async (string streamName, HttpContext context, IHttpClientFactory httpClientFactory) =>
+        {
+            try
+            {
+                var httpClient = httpClientFactory.CreateClient();
+                var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/playlist.m3u8";
+                var response = await httpClient.GetAsync(wowzaUrl);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    // Rewrite URLs to point to our proxy
+                    content = content.Replace($"chunklist", $"/hls/{streamName}/chunklist");
+
+                    context.Response.ContentType = "application/vnd.apple.mpegurl";
+                    context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+                    await context.Response.WriteAsync(content);
+                }
+                else
+                {
+                    context.Response.StatusCode = 404;
+                    await context.Response.WriteAsync("Stream not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[HLS PROXY ERROR] playlist.m3u8: {ex.Message}");
+                context.Response.StatusCode = 500;
+                await context.Response.WriteAsync($"Error: {ex.Message}");
+            }
+        });
+
+        app.MapGet("/hls/{streamName}/{fileName}", async (string streamName, string fileName, HttpContext context, IHttpClientFactory httpClientFactory) =>
+        {
+            try
+            {
+                var httpClient = httpClientFactory.CreateClient();
+                var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/{fileName}";
+                var response = await httpClient.GetAsync(wowzaUrl);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    // Check if it's a manifest or segment
+                    if (fileName.EndsWith(".m3u8"))
+                    {
+                        // It's a chunklist - rewrite segment URLs
+                        var content = await response.Content.ReadAsStringAsync();
+                        content = content.Replace($"media_", $"/hls/{streamName}/media_");
+
+                        context.Response.ContentType = "application/vnd.apple.mpegurl";
+                        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+                        await context.Response.WriteAsync(content);
+                    }
+                    else
+                    {
+                        // It's a media segment (.ts file)
+                        var content = await response.Content.ReadAsByteArrayAsync();
+                        context.Response.ContentType = "video/MP2T";
+                        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+                        await context.Response.Body.WriteAsync(content);
+                    }
+                }
+                else
+                {
+                    context.Response.StatusCode = 404;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[HLS PROXY ERROR] {fileName}: {ex.Message}");
+                context.Response.StatusCode = 500;
+            }
+        });
 
         // --- Background Service Logic ---
         var cts = new CancellationTokenSource();
@@ -117,23 +195,31 @@ public class Program
                         var chunk = await processingQueue.DequeueAsync(cts.Token);
                         Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(chunk.FilePath)}...");
 
-                        var text = await whisperService.TranscribeAsync(chunk.FilePath, cts.Token);
+                        // Get the TranscriptionResult object
+                        var transcriptionResult = await whisperService.TranscribeAsync(chunk.FilePath, cts.Token);
 
-                        if (!string.IsNullOrWhiteSpace(text))
+                        // Check the result object
+                        if (transcriptionResult != null && (!string.IsNullOrWhiteSpace(transcriptionResult.OriginalText) || !string.IsNullOrWhiteSpace(transcriptionResult.TranslatedText)))
                         {
-                            var trimmedText = text.Trim();
+                            // Ensure we have fallbacks
+                            var originalText = (transcriptionResult.OriginalText ?? transcriptionResult.TranslatedText ?? "").Trim();
+                            var translatedText = (transcriptionResult.TranslatedText ?? transcriptionResult.OriginalText ?? "").Trim();
+
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {trimmedText}");
+                            // Log both languages
+                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → [ORG] {originalText} [TRN] {translatedText}");
                             Console.ResetColor();
 
                             //create DTO
-                            var dto = new SingleCaptionDto(trimmedText, chunk.wallClockStartTS, chunk.wallClockEndTS);
+                            // MODIFIED: Pass both texts to the DTO
+                            var dto = new SingleCaptionDto(originalText, translatedText, chunk.wallClockStartTS, chunk.wallClockEndTS);
 
                             // Send to all connected web clients
                             try
                             {
                                 await hubContext.Clients.All.SendAsync("ReceiveTranscription", dto);
-                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.text}");
+                                // Update log message
+                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.originalText} / {dto.translatedText}");
                             }
                             catch (Exception signalrEx)
                             {

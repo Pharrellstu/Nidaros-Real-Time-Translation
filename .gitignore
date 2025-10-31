@@ -49,3 +49,10 @@ _ReSharper*/
 # Others
 *.swp
 *~
+
+# Whisper/Faster-Whisper Models
+**/models/
+**/cache/
+**/.cache/
+FasterWhisperService/models/
+FasterWhisperService/cache/
