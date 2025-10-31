@@ -88,8 +88,16 @@
             color: #aaa;
         }
 
-        .subtitle-toggle-container {
+        /* NEW: Wrapper for controls */
+        .controls-container {
             margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .subtitle-toggle-container {
+            /* margin-top: 15px; */ /* Removed, now handled by controls-container */
             display: flex;
             align-items: center;
             gap: 10px;
@@ -218,7 +226,7 @@
         .size-control-btn:hover {
             background-color: #444;
         }
-
+        
         .size-dropdown {
             position: absolute;
             bottom: 100%;
@@ -265,6 +273,22 @@
         .size-option.active .checkmark {
             display: inline;
         }
+
+        /* Styles for the language selector */
+        .language-selector-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #language-select {
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 5px;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 
@@ -278,19 +302,21 @@
 
     <h1>Live Subtitle Demo</h1>
 
-    <div class="video-container">
-        <video-js id="live-video" class="vjs-default-skin vjs-big-play-centered" controls preload="auto" width="960"
-            height="540" data-setup="{}">
-            <!-- IMPORTANT: Update this URL to your HLS stream URL -->
-            <source src="http://localhost:5032/hls/OBSstream/playlist.m3u8" type="application/x-mpegURL">
-            <p class="vjs-no-js">
-                To view this video please enable JavaScript, and consider upgrading to a
-                web browser that
-                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-            </p>
-        </video-js>
-    </div>
+<div class="video-container">
+    <video-js id="live-video" class="vjs-default-skin vjs-big-play-centered" controls preload="auto" width="960"
+              height="540" data-setup="{}">
+        <!-- IMPORTANT: Update this URL to your HLS stream URL -->
+        <source src="http://localhost:5032/hls/OBSstream/playlist.m3u8" type="application/x-mpegURL">
+        <p class="vjs-no-js">
+            To view this video please enable JavaScript, and consider upgrading to a
+            web browser that
+            <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+        </p>
+    </video-js>
+</div>
 
+<!-- NEW: Controls Wrapper -->
+<div class="controls-container">
     <div class="subtitle-toggle-container">
         <span class="toggle-label">Subtitles</span>
         <label class="toggle-switch">
@@ -325,339 +351,373 @@
         </div>
     </div>
 
-    <div id="subtitle-display">
-        Waiting for transcription...
+    <!-- NEW: Language Selector HTML -->
+    <div class="language-selector-container">
+        <label for="language-select" class="toggle-label">Language</label>
+        <select id="language-select">
+            <option value="translated">Dutch</option>
+            <option value="original">English</option>
+        </select>
     </div>
-    <div id="connection-status">
-        <span id="status-indicator" class="status-dot disconnected"></span>
-        <span>Connecting to subtitle server...</span>
-    </div>
+</div>
 
-    <!-- Video.js and SignalR scripts -->
-    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+<div id="subtitle-display">
+    Waiting for transcription...
+</div>
+<div id="connection-status">
+    <span id="status-indicator" class="status-dot disconnected"></span>
+    <span>Connecting to subtitle server...</span>
+</div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // 1. Initialize Video.js Player
-            const player = videojs('live-video');
+<!-- Video.js and SignalR scripts -->
+<script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 
-            // Debug: Track stream timing events
-            player.on('playing', () => {
-                console.log('Stream playing at:', {
-                    wallClock: Date.now(),
-                    playerTime: player.currentTime(),
-                    duration: player.duration(),
-                    liveTracker: player.liveTracker ? {
-                        liveCurrentTime: player.liveTracker.liveCurrentTime(),
-                        seekableStart: player.liveTracker.seekableStart(),
-                        seekableEnd: player.liveTracker.seekableEnd(),
-                    } : 'No live tracker'
-                });
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // 1. Initialize Video.js Player
+        const player = videojs('live-video');
+
+        // Debug: Track stream timing events
+        player.on('playing', () => {
+            console.log('Stream playing at:', {
+                wallClock: Date.now(),
+                playerTime: player.currentTime(),
+                duration: player.duration(),
+                liveTracker: player.liveTracker ? {
+                    liveCurrentTime: player.liveTracker.liveCurrentTime(),
+                    seekableStart: player.liveTracker.seekableStart(),
+                    seekableEnd: player.liveTracker.seekableEnd(),
+                } : 'No live tracker'
             });
+        });
 
-            player.on('loadedmetadata', () => {
-                console.log('Stream metadata loaded:', {
-                    duration: player.duration(),
-                    currentTime: player.currentTime(),
-                });
+        player.on('loadedmetadata', () => {
+            console.log('Stream metadata loaded:', {
+                duration: player.duration(),
+                currentTime: player.currentTime(),
             });
+        });
 
-            // Start playing
-            player.play();
+        // Start playing
+        player.play();
 
-            // 2. Get subtitle elements and toggle
-            const subtitleDisplay = document.getElementById('subtitle-display');
-            const subtitleToggle = document.getElementById('subtitle-toggle');
-            const connectionStatus = document.getElementById('connection-status');
-            const statusIndicator = document.getElementById('status-indicator');
-            const translationWarning = document.getElementById('translation-warning');
-            const warningMessage = document.getElementById('warning-message');
+        // 2. Get subtitle elements and toggle
+        const subtitleDisplay = document.getElementById('subtitle-display');
+        const subtitleToggle = document.getElementById('subtitle-toggle');
+        const languageSelect = document.getElementById('language-select');
+        const connectionStatus = document.getElementById('connection-status');
+        const statusIndicator = document.getElementById('status-indicator');
+        const translationWarning = document.getElementById('translation-warning');
+        const warningMessage = document.getElementById('warning-message');
 
-            // Translation service status
-            let translationServiceAvailable = true;
+        // Translation service status
+        let translationServiceAvailable = true;
 
-            // 3. Load subtitle state from localStorage or default to true
-            let subtitlesEnabled = localStorage.getItem('subtitlesEnabled') !== 'false';
-            subtitleToggle.checked = subtitlesEnabled;
-            let activeSubtitles = [];
+        // 3. Load subtitle state from localStorage or default to true
+        let subtitlesEnabled = localStorage.getItem('subtitlesEnabled') !== 'false';
+        let selectedLanguage = localStorage.getItem('selectedLanguage') || 'translated';
+        subtitleToggle.checked = subtitlesEnabled;
+        languageSelect.value = selectedLanguage;
+        let activeSubtitles = [];
 
-            // Subtitle Size Control
-            const sizeControlBtn = document.getElementById('size-control-btn');
-            const sizeDropdown = document.getElementById('size-dropdown');
-            const sizeOptions = document.querySelectorAll('.size-option');
-            const currentSizeLabel = document.getElementById('current-size-label');
+        // Subtitle Size Control
+        const sizeControlBtn = document.getElementById('size-control-btn');
+        const sizeDropdown = document.getElementById('size-dropdown');
+        const sizeOptions = document.querySelectorAll('.size-option');
+        const currentSizeLabel = document.getElementById('current-size-label');
 
-            // Load saved size preference or default to 'normal'
-            let currentSize = localStorage.getItem('subtitleSize') || 'normal';
-            applySubtitleSize(currentSize);
+        // Load saved size preference or default to 'normal'
+        let currentSize = localStorage.getItem('subtitleSize') || 'normal';
+        applySubtitleSize(currentSize);
 
-            // Toggle size dropdown
-            sizeControlBtn.addEventListener('click', (e) => {
+        // Toggle size dropdown
+        sizeControlBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sizeDropdown.classList.toggle('show');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', () => {
+            sizeDropdown.classList.remove('show');
+        });
+
+        // Handle size option clicks
+        sizeOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
                 e.stopPropagation();
-                sizeDropdown.classList.toggle('show');
-            });
-
-            // Close dropdown when clicking outside
-            document.addEventListener('click', () => {
+                const size = option.dataset.size;
+                currentSize = size;
+                applySubtitleSize(size);
+                localStorage.setItem('subtitleSize', size);
                 sizeDropdown.classList.remove('show');
             });
+        });
 
-            // Handle size option clicks
-            sizeOptions.forEach(option => {
-                option.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const size = option.dataset.size;
-                    currentSize = size;
-                    applySubtitleSize(size);
-                    localStorage.setItem('subtitleSize', size);
-                    sizeDropdown.classList.remove('show');
-                });
-            });
+        function applySubtitleSize(size) {
+            // Remove all size classes
+            subtitleDisplay.classList.remove('size-small', 'size-medium', 'size-normal', 'size-large');
+            // Add the selected size class
+            subtitleDisplay.classList.add(`size-${size}`);
+            
+            // Update active state in dropdown
+            sizeOptions.forEach(opt => opt.classList.remove('active'));
+            document.querySelector(`.size-option[data-size="${size}"]`).classList.add('active');
+            
+            // Update button label
+            const sizeLabel = size.charAt(0).toUpperCase() + size.slice(1);
+            currentSizeLabel.textContent = sizeLabel;
+        }
 
-            function applySubtitleSize(size) {
-                // Remove all size classes
-                subtitleDisplay.classList.remove('size-small', 'size-medium', 'size-normal', 'size-large');
-                // Add the selected size class
-                subtitleDisplay.classList.add(`size-${size}`);
-                
-                // Update active state in dropdown
-                sizeOptions.forEach(opt => opt.classList.remove('active'));
-                document.querySelector(`.size-option[data-size="${size}"]`).classList.add('active');
-                
-                // Update button label
-                const sizeLabel = size.charAt(0).toUpperCase() + size.slice(1);
-                currentSizeLabel.textContent = sizeLabel;
-            }
+        // Apply initial subtitle visibility
+        if (!subtitlesEnabled) {
+            subtitleDisplay.classList.add('hidden');
+        }
 
-            // Apply initial subtitle visibility
-            if (!subtitlesEnabled) {
+        // 4. Handle subtitle toggle
+        subtitleToggle.addEventListener('change', function () {
+            subtitlesEnabled = this.checked;
+
+            // Save preference to localStorage
+            localStorage.setItem('subtitlesEnabled', subtitlesEnabled);
+
+            // Show/hide subtitles immediately
+            if (subtitlesEnabled) {
+                subtitleDisplay.classList.remove('hidden');
+                updateActiveSubtitles();
+            } else {
                 subtitleDisplay.classList.add('hidden');
+                subtitleDisplay.textContent = '';
+                activeSubtitles = [];
+            }
+        });
+
+        // NEW: 4.5. Handle language change
+        languageSelect.addEventListener('change', function () {
+            selectedLanguage = this.value;
+            localStorage.setItem('selectedLanguage', selectedLanguage);
+            updateActiveSubtitles(); // Re-render subtitles with new language
+        });
+
+
+        // MODIFIED: Update subtitle display based on selected language
+        function updateActiveSubtitles() {
+            if (!subtitlesEnabled) {
+                subtitleDisplay.textContent = '';
+                return;
             }
 
-            // 4. Handle subtitle toggle
-            subtitleToggle.addEventListener('change', function () {
-                subtitlesEnabled = this.checked;
+            // Remove expired subtitles
+            const now = Date.now();
+            activeSubtitles = activeSubtitles.filter(caption => caption.clearTime > now);
 
-                // Save preference to localStorage
-                localStorage.setItem('subtitlesEnabled', subtitlesEnabled);
+            if (activeSubtitles.length === 0) {
+                // Use a placeholder text when no subtitles are active
+                subtitleDisplay.textContent = 'Waiting for transcription...';
+            } else {
+                // Show up to 2 most recent subtitles
+                const subtitlesToShow = activeSubtitles.slice(-2);
+                // MODIFIED: Choose text based on selectedLanguage property
+                const displayText = subtitlesToShow.map(caption => {
+                    return selectedLanguage === 'original' ? caption.originalText : caption.translatedText;
+                }).join(' • ');
+                subtitleDisplay.textContent = displayText;
+            }
+        }
 
-                // Show/hide subtitles immediately
-                if (subtitlesEnabled) {
-                    subtitleDisplay.classList.remove('hidden');
-                    updateSubtitleDisplay();
-                } else {
-                    subtitleDisplay.classList.add('hidden');
-                    subtitleDisplay.textContent = '';
-                    activeSubtitles = [];
+        // 5. Setup SignalR Connection
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("http://localhost:5032/SubtitlesHub") // This must match the endpoint in Program.cs
+            .withAutomaticReconnect()
+            .build();
+
+        // Handle incoming transcriptions
+        /*
+            The timing is a bit tricky
+            singleCaptionDTO has startTS and endTS, which are wall-clock (global, not relative to the stream)
+            the live has a starting timestamp of wall-clock type,
+        */
+        connection.on("ReceiveTranscription", (singleCaptionDTO) => {
+            try {
+                console.log("Received:", singleCaptionDTO);
+                const captionReceivedTS = Date.now();
+
+                // MODIFIED: Get both texts from the DTO
+                const originalText = singleCaptionDTO.originalText ?? "Error: originalText null";
+                const translatedText = singleCaptionDTO.translatedText ?? "Error: translatedText null";
+
+                const startTS = singleCaptionDTO.wallClockStartTS;
+                const endTS = singleCaptionDTO.wallClockEndTS;
+                const captionAge = (captionReceivedTS - startTS);
+                const delay = getHLSStreamDelay();
+
+                if (isNaN(delay)) {
+                    console.error("Calculated delay is NaN, cannot schedule caption display.");
+                    return;
                 }
-            });
-
-            // Update subtiles state
-            function updateActiveSubtitles() {
-                if (!subtitlesEnabled) {
-                    subtitleDisplay.textContent = '';
+                if (isNaN(startTS) || isNaN(endTS)) {
+                    console.error("Invalid startTS or endTS:", startTS, endTS);
                     return;
                 }
 
-                // Remove expired subtitles
-                const now = Date.now();
-                activeSubtitles = activeSubtitles.filter(caption => caption.clearTime > now);
+                // MODIFIED: Updated log to be language-neutral
+                console.log(`Caption [ORG: ${originalText} / TRN: ${translatedText}] will appear in ${(delay - captionAge) / 1000} s`);
 
-                // Show up to 2 most recent subtitles
-                if (activeSubtitles.length === 0) {
-                    subtitleDisplay.textContent = '';
-                } else {
-                    const subtitlesToShow = activeSubtitles.slice(-2);
-                    const displayText = subtitlesToShow.map(caption => caption.text).join(' • ');
-                    subtitleDisplay.textContent = displayText;
-                }
+                // MODIFIED: Store both languages
+                const captionData = {
+                    originalText: originalText,
+                    translatedText: translatedText,
+                    displayTime: startTS + delay,
+                    clearTime: endTS + delay
+                };
+
+                //if the subtitle is expired, add it right away
+                const displayDelay = (captionData.displayTime - Date.now() > 0) ? captionData.displayTime - Date.now() : 0;
+
+
+                setTimeout(() => {
+                    if (!subtitlesEnabled) return;
+
+                    // MODIFIED: Log is now neutral, updateActiveSubtitles will show correct text
+                    console.log(`Caption appearing now, it was received ${displayDelay} ms ago.`);
+
+                    activeSubtitles.push(captionData);
+                    updateActiveSubtitles(); // This will now render the correct language
+
+                    // Clear subtitle after its duration
+                    const removeDelay = (captionData.clearTime - Date.now() > 0) ? (captionData.clearTime - Date.now()) : 0;
+                    setTimeout(() => {
+
+                        const index = activeSubtitles.indexOf(captionData);
+                        if (index > -1) {
+                            activeSubtitles.splice(index, 1);
+                            updateActiveSubtitles();
+                        }
+                    }, removeDelay);
+                }, displayDelay);
+
+            } catch (error) {
+                console.error("Error processing transcription:", error);
             }
 
-            // 5. Setup SignalR Connection
-            const connection = new signalR.HubConnectionBuilder()
-                .withUrl("http://localhost:5032/SubtitlesHub") // This must match the endpoint in Program.cs
-                .withAutomaticReconnect()
-                .build();
+        });
 
-            // Handle incoming transcriptions
-            /*
-                The timing is a bit tricky
-                singleCaptionDTO has startTS and endTS, which are wall-clock (global, not relative to the stream)
-                the live has a starting timestamp of wall-clock type, 
-            */
-            connection.on("ReceiveTranscription", (singleCaptionDTO) => {
-                try {
-                    console.log("Received:", singleCaptionDTO);
-                    const captionReceivedTS = Date.now();
-                    const text = singleCaptionDTO.text ?? "Error receiving text; Null";
-                    const startTS = singleCaptionDTO.wallClockStartTS;
-                    const endTS = singleCaptionDTO.wallClockEndTS;
-                    const captionAge = (captionReceivedTS - startTS);
-                    const delay = getHLSStreamDelay();
+        // Update UI based on connection status
+        connection.onreconnecting(error => {
+            console.warn(`Connection lost: ${error}. Reconnecting...`);
+            statusIndicator.className = 'status-dot disconnected';
+            connectionStatus.children[1].textContent = 'Connection lost. Reconnecting...';
+        });
 
-                    if (isNaN(delay)) {
-                        console.error("Calculated delay is NaN, cannot schedule caption display.");
-                        return;
-                    }
-                    if (isNaN(startTS) || isNaN(endTS)) {
-                        console.error("Invalid startTS or endTS:", startTS, endTS);
-                        return;
-                    }
+        connection.onreconnected(connectionId => {
+            console.log(`Connection re-established. Connected with ID: ${connectionId}`);
+            statusIndicator.className = 'status-dot connected';
+            connectionStatus.children[1].textContent = 'Connected to subtitle server.';
+        });
 
-                    console.log(`Caption ${text} will appear in ${(delay - captionAge) / 1000} s`);
-
-                    const captionData = {
-                        text: text,
-                        displayTime: startTS + delay,
-                        clearTime: endTS + delay
-                    };
-
-                    //if the subtitle is expired, add it right away
-                    const displayDelay = (captionData.displayTime - Date.now() > 0) ? captionData.displayTime - Date.now() : 0;
-
-
-                    setTimeout(() => {
-                        if (!subtitlesEnabled) return;
-                        console.log(`Caption appearing now, it was received ${displayDelay} ms ago. Content: "${text}"`);
-
-                        activeSubtitles.push(captionData);
-                        updateActiveSubtitles();
-
-                        // Clear subtitle after its duration
-                        const removeDelay = (captionData.clearTime - Date.now() > 0) ? (captionData.clearTime - Date.now()) : 0;
-                        setTimeout(() => {
-
-                            const index = activeSubtitles.indexOf(captionData);
-                            if (index > -1) {
-                                activeSubtitles.splice(index, 1);
-                                updateActiveSubtitles();
-                            }
-                        }, removeDelay);
-                    }, displayDelay);
-
-                } catch (error) {
-                    console.error("Error processing transcription:", error);
-                }
-
-            });
-
-            // Update UI based on connection status
-            connection.onreconnecting(error => {
-                console.warn(`Connection lost: ${error}. Reconnecting...`);
-                statusIndicator.className = 'status-dot disconnected';
-                connectionStatus.children[1].textContent = 'Connection lost. Reconnecting...';
-            });
-
-            connection.onreconnected(connectionId => {
-                console.log(`Connection re-established. Connected with ID: ${connectionId}`);
+        // 6. Start the connection
+        async function start() {
+            try {
+                await connection.start();
+                console.log("SignalR Connected.");
                 statusIndicator.className = 'status-dot connected';
                 connectionStatus.children[1].textContent = 'Connected to subtitle server.';
-            });
-
-            // Handle translation service status changes
-            connection.on("TranslationServiceStatusChanged", (data) => {
-                console.log(`[TRANSLATION SERVICE] Status: ${data.status}, Message: ${data.message}`);
-                
-                if (data.status === "unavailable") {
-                    translationServiceAvailable = false;
-                    translationWarning.classList.add('show');
-                    warningMessage.textContent = data.message || "Translation Service Unavailable - Showing Dutch Captions Only";
-                    console.warn("⚠️ Translation service is DOWN - Dutch-only captions will be displayed");
-                } else if (data.status === "available") {
-                    translationServiceAvailable = true;
-                    translationWarning.classList.remove('show');
-                    console.log("✅ Translation service has RECOVERED - Translations will resume");
-                }
-            });
-
-            // 6. Start the connection
-            async function start() {
-                try {
-                    await connection.start();
-                    console.log("SignalR Connected.");
-                    statusIndicator.className = 'status-dot connected';
-                    connectionStatus.children[1].textContent = 'Connected to subtitle server.';
-                } catch (err) {
-                    console.error("SignalR Connection Error: ", err);
-                    statusIndicator.className = 'status-dot disconnected';
-                    connectionStatus.children[1].textContent = 'Failed to connect to subtitle server.';
-                    setTimeout(start, 5000); // Retry connection after 5 seconds
-                }
+            } catch (err) {
+                console.error("SignalR Connection Error: ", err);
+                statusIndicator.className = 'status-dot disconnected';
+                connectionStatus.children[1].textContent = 'Failed to connect to subtitle server.';
+                setTimeout(start, 5000); // Retry connection after 5 seconds
             }
+        }
 
-            // 7. Delay calculation
-            /*
-                This function manages the delay calculation of the stream.
-
-                Explanation:
-                It measures the buffers and gets a median value from them.
-                It's not pretty, but it works so well it annoys me.
-                It doesn't take into account the network delay from server to client,
-                but that is relatively small compared to the overall HLS delay,
-                and it is similar to the delay from Wowza to the transciption server,
-                so they cancel eachother out.
-
-                There is just no way to measure the latency of the stream drectly.
-                If a method of getting the time since the stream started over here,
-                from the perspective of the player, it would be great,
-                because it would be possible to add it to the EXT-X-PROGRAM-DATE-TIME
-                from the HLS manifest, and find out exactly the delay.
-                
-                Unfortunately, we can only get player.liveTracker.liveCurrentTime()
-                and other methods that are all relative to the start of the player,
-                not to the start of the actual stream.
-
-                Future improvements:
-                For the MVP, at the moment of writing this comment, the plan is to
-                embed the subtitles in the HLS stream itself and that way the frontend
-                will not need to do any syncronization.
-                Otherwise, look into EXT-X-PROGRAM-DATE-TIME, add it as a Wowza module,
-                and start working on that:
-                https://www.wowza.com/docs/how-to-control-display-of-program-date-and-time-headers-in-hls-chunklists-for-live-streams-ext-x-program-date-time
-                Else, consider working on stream segments, I didn't look into that.
-            */
-
-            let delayMeasurements = [];
-            const delayMeasurementsCount = 10;
-            const assumedDelay = 10000; // in ms
-            const delayAdjustment = 3000; // in ms, if the delay needs manual adjustment
-            function getHLSStreamDelay() {
-                const video = document.querySelector('video');
-                if (!video?.buffered.length) {
-                    console.error("Can't get the buffered length, will just use the assumedDelay of ", assumedDelay, " ms");
-                    return assumedDelay;
-                }
-
-                // measure single buffer delay
-                const bufferEnd = video.buffered.end(video.buffered.length - 1);
-                const currentTime = video.currentTime;
-                const bufferDelay = (bufferEnd - currentTime) * 1000;
-
-                // average a couple of samples
-                /*
-                    This must be done because the buffer doesn't grow constantly
-                    It receives a segment, after a while it receives another segment
-                    So depending on when this method is called, a single bufferDelay
-                    can be X seconds when called just after a segment is received,
-                    and then X+<segment duration> seconds just before the next segment
-                    is received.
-                */
-                delayMeasurements.push(bufferDelay);
-                // keep just 10 measurements
-                if (delayMeasurements.length > delayMeasurementsCount) delayMeasurements.shift();
-
-                //recursively iterate the measurements to sum up, then divide to get an average
-                var averageDelay = delayMeasurements.reduce((a, b) => a + b) / delayMeasurements.length;
-
-                // Add estimated transmission delay (2-4 seconds)
-                averageDelay += delayAdjustment;
-
-                return averageDelay;
+        // Handle translation service status changes
+        connection.on("TranslationServiceStatusChanged", (data) => {
+            console.log(`[TRANSLATION SERVICE] Status: ${data.status}, Message: ${data.message}`);
+            
+            if (data.status === "unavailable") {
+                translationServiceAvailable = false;
+                translationWarning.classList.add('show');
+                warningMessage.textContent = data.message || "Translation Service Unavailable - Showing Original Captions Only";
+                console.warn("⚠️ Translation service is DOWN - Original captions will be displayed");
+            } else if (data.status === "available") {
+                translationServiceAvailable = true;
+                translationWarning.classList.remove('show');
+                console.log("✅ Translation service has RECOVERED - Translations will resume");
             }
-            start();
         });
-    </script>
+
+        // 7. Delay calculation
+        /*
+            This function manages the delay calculation of the stream.
+
+            Explanation:
+            It measures the buffers and gets a median value from them.
+            It's not pretty, but it works so well it annoys me.
+            It doesn't take into account the network delay from server to client,
+            but that is relatively small compared to the overall HLS delay,
+            and it is similar to the delay from Wowza to the transciption server,
+            so they cancel eachother out.
+
+            There is just no way to measure the latency of the stream drectly.
+            If a method of getting the time since the stream started over here,
+            from the perspective of the player, it would be great,
+            because it would be possible to add it to the EXT-X-PROGRAM-DATE-TIME
+            from the HLS manifest, and find out exactly the delay.
+
+            Unfortunately, we can only get player.liveTracker.liveCurrentTime()
+            and other methods that are all relative to the start of the player,
+            not to the start of the actual stream.
+
+            Future improvements:
+            For the MVP, at the moment of writing this comment, the plan is to
+            embed the subtitles in the HLS stream itself and that way the frontend
+            will not need to do any syncronization.
+            Otherwise, look into EXT-X-PROGRAM-DATE-TIME, add it as a Wowza module,
+            and start working on that:
+            https://www.wowza.com/docs/how-to-control-display-of-program-date-and-time-headers-in-hls-chunklists-for-live-streams-ext-x-program-date-time
+            Else, consider working on stream segments, I didn't look into that.
+        */
+
+        let delayMeasurements = [];
+        const delayMeasurementsCount = 10;
+        const assumedDelay = 10000; // in ms
+        const delayAdjustment = 3000; // in ms, if the delay needs manual adjustment
+        function getHLSStreamDelay() {
+            const video = document.querySelector('video');
+            if (!video?.buffered.length) {
+                console.error("Can't get the buffered length, will just use the assumedDelay of ", assumedDelay, " ms");
+                return assumedDelay;
+            }
+
+            // measure single buffer delay
+            const bufferEnd = video.buffered.end(video.buffered.length - 1);
+            const currentTime = video.currentTime;
+            const bufferDelay = (bufferEnd - currentTime) * 1000;
+
+            // average a couple of samples
+            /*
+                This must be done because the buffer doesn't grow constantly
+                It receives a segment, after a while it receives another segment
+                So depending on when this method is called, a single bufferDelay
+                can be X seconds when called just after a segment is received,
+                and then X+<segment duration> seconds just before the next segment
+                is received.
+            */
+            delayMeasurements.push(bufferDelay);
+            // keep just 10 measurements
+            if (delayMeasurements.length > delayMeasurementsCount) delayMeasurements.shift();
+
+            //recursively iterate the measurements to sum up, then divide to get an average
+            var averageDelay = delayMeasurements.reduce((a, b) => a + b) / delayMeasurements.length;
+
+            // Add estimated transmission delay (2-4 seconds)
+            averageDelay += delayAdjustment;
+
+            return averageDelay;
+        }
+        start();
+    });
+</script>
 </body>
 
 </html>
