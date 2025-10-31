@@ -65,13 +65,13 @@ public class Program
                 var httpClient = httpClientFactory.CreateClient();
                 var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/playlist.m3u8";
                 var response = await httpClient.GetAsync(wowzaUrl);
-                
+
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync();
                     // Rewrite URLs to point to our proxy
                     content = content.Replace($"chunklist", $"/hls/{streamName}/chunklist");
-                    
+
                     context.Response.ContentType = "application/vnd.apple.mpegurl";
                     context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
                     await context.Response.WriteAsync(content);
@@ -97,7 +97,7 @@ public class Program
                 var httpClient = httpClientFactory.CreateClient();
                 var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/{fileName}";
                 var response = await httpClient.GetAsync(wowzaUrl);
-                
+
                 if (response.IsSuccessStatusCode)
                 {
                     // Check if it's a manifest or segment
@@ -106,7 +106,7 @@ public class Program
                         // It's a chunklist - rewrite segment URLs
                         var content = await response.Content.ReadAsStringAsync();
                         content = content.Replace($"media_", $"/hls/{streamName}/media_");
-                        
+
                         context.Response.ContentType = "application/vnd.apple.mpegurl";
                         context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
                         await context.Response.WriteAsync(content);
@@ -195,23 +195,31 @@ public class Program
                         var chunk = await processingQueue.DequeueAsync(cts.Token);
                         Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(chunk.FilePath)}...");
 
-                        var text = await whisperService.TranscribeAsync(chunk.FilePath, cts.Token);
+                        // Get the TranscriptionResult object
+                        var transcriptionResult = await whisperService.TranscribeAsync(chunk.FilePath, cts.Token);
 
-                        if (!string.IsNullOrWhiteSpace(text))
+                        // Check the result object
+                        if (transcriptionResult != null && (!string.IsNullOrWhiteSpace(transcriptionResult.OriginalText) || !string.IsNullOrWhiteSpace(transcriptionResult.TranslatedText)))
                         {
-                            var trimmedText = text.Trim();
+                            // Ensure we have fallbacks
+                            var originalText = (transcriptionResult.OriginalText ?? transcriptionResult.TranslatedText ?? "").Trim();
+                            var translatedText = (transcriptionResult.TranslatedText ?? transcriptionResult.OriginalText ?? "").Trim();
+
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {trimmedText}");
+                            // Log both languages
+                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → [ORG] {originalText} [TRN] {translatedText}");
                             Console.ResetColor();
 
                             //create DTO
-                            var dto = new SingleCaptionDto(trimmedText, chunk.wallClockStartTS, chunk.wallClockEndTS);
+                            // MODIFIED: Pass both texts to the DTO
+                            var dto = new SingleCaptionDto(originalText, translatedText, chunk.wallClockStartTS, chunk.wallClockEndTS);
 
                             // Send to all connected web clients
                             try
                             {
                                 await hubContext.Clients.All.SendAsync("ReceiveTranscription", dto);
-                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.text}");
+                                // Update log message
+                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.originalText} / {dto.translatedText}");
                             }
                             catch (Exception signalrEx)
                             {

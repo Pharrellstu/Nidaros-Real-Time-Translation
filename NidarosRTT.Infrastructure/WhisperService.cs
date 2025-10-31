@@ -4,12 +4,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System;
+using System.IO;
 
 namespace NidarosRTT.Infrastructure
 {
     public interface IWhisperService
     {
-        Task<string?> TranscribeAsync(string audioFilePath, CancellationToken token);
+        Task<TranscriptionResult?> TranscribeAsync(string audioFilePath, CancellationToken token);
     }
 
     public class WhisperService : IWhisperService
@@ -23,16 +24,19 @@ namespace NidarosRTT.Infrastructure
             _httpClient = new HttpClient();
         }
 
-        public async Task<string?> TranscribeAsync(string audioFilePath, CancellationToken token)
+        public async Task<TranscriptionResult?> TranscribeAsync(string audioFilePath, CancellationToken token)
         {
             if (!System.IO.File.Exists(audioFilePath))
                 return null;
 
-            using var fileStream = System.IO.File.OpenRead(audioFilePath);
+
+            string cleanedPath = audioFilePath;
+
+            using var fileStream = System.IO.File.OpenRead(cleanedPath);
             using var content = new MultipartFormDataContent();
             var streamContent = new StreamContent(fileStream);
             streamContent.Headers.ContentType = MediaTypeHeaderValue.Parse("audio/wav");
-            content.Add(streamContent, "file", System.IO.Path.GetFileName(audioFilePath));
+            content.Add(streamContent, "file", System.IO.Path.GetFileName(cleanedPath));
 
             var response = await _httpClient.PostAsync(_whisperUrl, content, token);
             response.EnsureSuccessStatusCode();
@@ -43,25 +47,38 @@ namespace NidarosRTT.Infrastructure
             using var jsonDoc = JsonDocument.Parse(responseText);
             var root = jsonDoc.RootElement;
 
-            // first try to get the translation if not found get the origianl text
+            string? original = null;
+            string? translated = null;
+
+            // Get translated text
             if (root.TryGetProperty("translated_text", out var translatedProp))
             {
-                var translated = translatedProp.GetString();
-                if (!string.IsNullOrEmpty(translated))
-                    return translated;
+                translated = translatedProp.GetString();
             }
 
+            // Get original text
             if (root.TryGetProperty("original_text", out var originalProp))
             {
-                return originalProp.GetString();
+                original = originalProp.GetString();
             }
-
-            if (root.TryGetProperty("text", out var textProp))
+            // Fallback: if 'original_text' is missing, use 'text'
+            else if (root.TryGetProperty("text", out var textProp))
             {
-                return textProp.GetString();
+                original = textProp.GetString();
             }
 
-            return null;
+            // If both are empty, return null
+            if (string.IsNullOrEmpty(original) && string.IsNullOrEmpty(translated))
+                return null;
+
+            // Fallbacks: If one is missing, use the other's content.
+            if (string.IsNullOrEmpty(original))
+                original = translated;
+            if (string.IsNullOrEmpty(translated))
+                translated = original;
+
+
+            return new TranscriptionResult { OriginalText = original, TranslatedText = translated };
         }
     }
 }
