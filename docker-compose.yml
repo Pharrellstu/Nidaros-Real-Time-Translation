@@ -33,12 +33,14 @@ services:
     environment:
       # Use the service name 'whisper-service' for communication inside Docker
       - WHISPER_URL=http://whisper-service:5001/transcribe
+      - TRANSLATOR_URL=http://translator-service:5000
       - STREAM_URL=rtsp://wowza-trial:1935/live/OBSstream
       # The rest of your environment variables
       - ASPNETCORE_URLS=http://+:5032
       - FFMPEG_PATH=/usr/bin/ffmpeg
     depends_on:
       - whisper-service
+      - translator-service
     restart: unless-stopped
 
   # Wowza Streaming Engine Trial

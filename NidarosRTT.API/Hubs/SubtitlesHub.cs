@@ -27,5 +27,19 @@ namespace NidarosRTT.API.Hubs
             System.Console.WriteLine($"--> Received message from client: {message}");
             await Clients.Caller.SendAsync("ReceiveMessage", $"Server received: {message}");
         }
+
+        /// <summary>
+        /// Broadcasts translation service status changes to all connected clients
+        /// </summary>
+        public async Task BroadcastTranslationStatus(string status, string message)
+        {
+            System.Console.WriteLine($"[SIGNALR] Broadcasting translation status: {status} - {message}");
+            await Clients.All.SendAsync("TranslationServiceStatusChanged", new
+            {
+                status = status,
+                message = message,
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            });
+        }
     }
 }

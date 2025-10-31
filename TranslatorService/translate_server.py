@@ -16,6 +16,10 @@ from typing import Optional
 
 # Configuration and logging credintials
 
+logging.basicConfig(level=logging.WARNING)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 APP_HOST = "0.0.0.0"
 APP_PORT = 5000
 DOWNLOAD_DIR = os.path.join(os.getcwd(), "argospm_downloads")  # downloading argospm module
@@ -140,6 +144,16 @@ def translate_endpoint():
     except Exception as e:
         logger.exception("Translation failed for %s -> %s: %s", from_lang, to_lang, e)
         return jsonify({"error": "internal translation error", "details": str(e)}), 500
+
+
+@app.route("/health", methods=["GET"])
+def health_endpoint():
+    """
+    GET /health
+    Health check endpoint for monitoring
+    Returns JSON: { "status": "ok" }
+    """
+    return jsonify({"status": "ok", "service": "argos-translator"})
 
 #python entry point
 

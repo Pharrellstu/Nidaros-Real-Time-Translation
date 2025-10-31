@@ -7,9 +7,22 @@ using System;
 
 namespace NidarosRTT.Infrastructure
 {
+    /// <summary>
+    /// Result from transcription service including translation status
+    /// </summary>
+    public class TranscriptionResult
+    {
+        public string? OriginalText { get; set; }
+        public string? TranslatedText { get; set; }
+        public string TranslationStatus { get; set; } = "unknown";
+        public string SourceLanguage { get; set; } = "nl";
+        public string? TargetLanguage { get; set; } = "en";
+    }
+
     public interface IWhisperService
     {
         Task<string?> TranscribeAsync(string audioFilePath, CancellationToken token);
+        Task<TranscriptionResult?> TranscribeWithStatusAsync(string audioFilePath, CancellationToken token);
     }
 
     public class WhisperService : IWhisperService
@@ -62,6 +75,78 @@ namespace NidarosRTT.Infrastructure
             }
 
             return null;
+        }
+
+        public async Task<TranscriptionResult?> TranscribeWithStatusAsync(string audioFilePath, CancellationToken token)
+        {
+            if (!System.IO.File.Exists(audioFilePath))
+                return null;
+
+            using var fileStream = System.IO.File.OpenRead(audioFilePath);
+            using var content = new MultipartFormDataContent();
+            var streamContent = new StreamContent(fileStream);
+            streamContent.Headers.ContentType = MediaTypeHeaderValue.Parse("audio/wav");
+            content.Add(streamContent, "file", System.IO.Path.GetFileName(audioFilePath));
+
+            var response = await _httpClient.PostAsync(_whisperUrl, content, token);
+            response.EnsureSuccessStatusCode();
+
+            var responseText = await response.Content.ReadAsStringAsync(token);
+            Console.WriteLine($"[WHISPER RESPONSE] {responseText}");
+
+            using var jsonDoc = JsonDocument.Parse(responseText);
+            var root = jsonDoc.RootElement;
+
+            var result = new TranscriptionResult();
+
+            // Parse original text
+            if (root.TryGetProperty("original_text", out var originalProp))
+            {
+                result.OriginalText = originalProp.GetString();
+            }
+            else if (root.TryGetProperty("text", out var textProp))
+            {
+                result.OriginalText = textProp.GetString();
+            }
+
+            // Parse translated text
+            if (root.TryGetProperty("translated_text", out var translatedProp))
+            {
+                result.TranslatedText = translatedProp.GetString();
+            }
+
+            // Parse translation status
+            if (root.TryGetProperty("translation_status", out var statusProp))
+            {
+                result.TranslationStatus = statusProp.GetString() ?? "unknown";
+            }
+            else
+            {
+                // Infer status if not provided
+                if (!string.IsNullOrEmpty(result.TranslatedText))
+                {
+                    result.TranslationStatus = "success";
+                }
+                else if (!string.IsNullOrEmpty(result.OriginalText))
+                {
+                    result.TranslationStatus = "service_unavailable";
+                }
+            }
+
+            // Parse language codes
+            if (root.TryGetProperty("source_language", out var sourceLangProp))
+            {
+                result.SourceLanguage = sourceLangProp.GetString() ?? "nl";
+            }
+
+            if (root.TryGetProperty("target_language", out var targetLangProp))
+            {
+                result.TargetLanguage = targetLangProp.GetString();
+            }
+
+            Console.WriteLine($"[WHISPER SERVICE] Original: '{result.OriginalText}', Translated: '{result.TranslatedText}', Status: {result.TranslationStatus}");
+
+            return result;
         }
     }
 }

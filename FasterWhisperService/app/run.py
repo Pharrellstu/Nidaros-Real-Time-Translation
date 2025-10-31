@@ -58,14 +58,17 @@ async def transcribe(file: UploadFile = File(...)):
         
         logger.info(f"[TRANSCRIPTION] Original: {text}")
         
-        # Translate the text
-        translated_text = translate_text(text)
+        # Translate the text and get status
+        translated_text, translation_status = translate_text(text)
         
-        logger.info(f"[TRANSLATION] Translated: {translated_text}")
+        logger.info(f"[TRANSLATION] Translated: {translated_text} (Status: {translation_status})")
         
         return {
             "original_text": text,
-            "translated_text": translated_text
+            "translated_text": translated_text if translated_text else text,
+            "translation_status": translation_status,
+            "source_language": "en",
+            "target_language": "nl"
         }
     
     except Exception as e:
@@ -84,9 +87,11 @@ async def transcribe(file: UploadFile = File(...)):
 def translate_text(text: str, source_lang: str = "en", target_lang: str = "nl"):
     """
     Translate text using the translation service.
+    Returns a tuple: (translated_text, status)
+    Status can be: "success", "failed", "service_unavailable"
     """
     if not text:
-        return ""
+        return "", "failed"
     
     try:
         response = requests.post(
@@ -102,11 +107,24 @@ def translate_text(text: str, source_lang: str = "en", target_lang: str = "nl"):
         # Attempt different field names depending on translator API
         translation = data.get("translated_text") or data.get("translation") or data.get("translatedText")
         
-        return translation if translation else text
+        if translation and translation != text:
+            return translation, "success"
+        else:
+            logger.warning(f"Translation service returned empty or same text")
+            return text, "failed"
     
+    except requests.exceptions.Timeout:
+        logger.error(f"Translation service timeout")
+        return text, "service_unavailable"
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"Translation service connection error: {e}")
+        return text, "service_unavailable"
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"Translation service HTTP error: {e}")
+        return text, "service_unavailable"
     except Exception as e:
-        logger.error(f"Translation service error: {e}")
-        return text  # Return original if translation fails
+        logger.error(f"Translation service unexpected error: {e}")
+        return text, "failed"
 
 
 @app.get("/health")

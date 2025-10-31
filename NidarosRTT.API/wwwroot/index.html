@@ -127,10 +127,65 @@
         input:checked+.toggle-slider:before {
             transform: translateX(26px);
         }
+
+        /* Translation service warning banner */
+        .translation-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #ff9800;
+            color: #000;
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.95em;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            z-index: 9999;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        .translation-warning.show {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .warning-icon {
+            margin-right: 8px;
+            font-size: 1.2em;
+        }
+
+        /* Dutch-only indicator in subtitles */
+        .subtitle-language-tag {
+            display: inline-block;
+            background-color: #ff9800;
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+            font-weight: bold;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 
 <body>
+
+    <!-- Translation Service Warning Banner -->
+    <div id="translation-warning" class="translation-warning">
+        <span class="warning-icon">⚠️</span>
+        <span id="warning-message">Translation Service Unavailable - Showing Original Captions Only</span>
+    </div>
 
     <h1>Live Subtitle Demo</h1>
 
@@ -201,6 +256,11 @@
             const subtitleToggle = document.getElementById('subtitle-toggle');
             const connectionStatus = document.getElementById('connection-status');
             const statusIndicator = document.getElementById('status-indicator');
+            const translationWarning = document.getElementById('translation-warning');
+            const warningMessage = document.getElementById('warning-message');
+
+            // Translation service status
+            let translationServiceAvailable = true;
 
             // 3. Load subtitle state from localStorage or default to true
             let subtitlesEnabled = localStorage.getItem('subtitlesEnabled') !== 'false';
@@ -330,6 +390,22 @@
                 console.log(`Connection re-established. Connected with ID: ${connectionId}`);
                 statusIndicator.className = 'status-dot connected';
                 connectionStatus.children[1].textContent = 'Connected to subtitle server.';
+            });
+
+            // Handle translation service status changes
+            connection.on("TranslationServiceStatusChanged", (data) => {
+                console.log(`[TRANSLATION SERVICE] Status: ${data.status}, Message: ${data.message}`);
+                
+                if (data.status === "unavailable") {
+                    translationServiceAvailable = false;
+                    translationWarning.classList.add('show');
+                    warningMessage.textContent = data.message || "Translation Service Unavailable - Showing Dutch Captions Only";
+                    console.warn("⚠️ Translation service is DOWN - Dutch-only captions will be displayed");
+                } else if (data.status === "available") {
+                    translationServiceAvailable = true;
+                    translationWarning.classList.remove('show');
+                    console.log("✅ Translation service has RECOVERED - Translations will resume");
+                }
             });
 
             // 6. Start the connection
