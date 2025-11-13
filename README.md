@@ -53,9 +53,18 @@ ADMIN_PASSWORD=your-secure-password
 
 ### 4. Build and Run the Containers
 
+Full setup:
+
 ```bash
 docker-compose up --build
 ```
+
+Minimal setup(no machine translation, but lightweight):
+
+```bash
+docker-compose -f docker-compose.minimal.yml up --build -d
+```
+
 
 Wait for all services to start. You may see some FFmpeg errors from `api-service-1`—this is normal. It just means it's waiting for your stream to start.
 
