@@ -4,7 +4,7 @@
 # or huge resource consumption.
 
 # Run this by doing:
-# 
+# docker-compose -f docker-compose.minimal.yml up --build -d
 
 version: '3.8'
 
