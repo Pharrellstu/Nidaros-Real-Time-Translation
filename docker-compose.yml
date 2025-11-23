@@ -45,8 +45,10 @@ services:
 
   # Wowza Streaming Engine Trial
   wowza-trial:
+    build:
+      context: ./WowzaCustom
+      dockerfile: Dockerfile
     hostname: wse.docker
-    image: wowza/wowza-streaming-engine:latest-trial
     environment:
       - WSE_LICENSE_KEY=${WSE_LICENSE_KEY}
       - ADMIN_USER=${ADMIN_USERNAME}
