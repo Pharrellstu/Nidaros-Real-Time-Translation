@@ -72,10 +72,11 @@ services:
     image: wowza/wowza-streaming-engine-manager:latest
     environment:
       - LOG_LEVEL=WARN
-      - WSE_HOST=http://wse.docker:8087
+      - WSE_HOST=http://wowza-trial:8087
     ports:
       - "8088:8080"
     depends_on:
       - wowza-trial
     restart: unless-stopped
+
 
