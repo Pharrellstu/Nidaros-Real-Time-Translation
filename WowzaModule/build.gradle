@@ -1,0 +1,56 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.nidaros'
+version = '1.0.0'
+sourceCompatibility = '17'
+targetCompatibility = '17'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Wowza SDK - Now in local lib folder
+    compileOnly fileTree(dir: 'lib', include: ['*.jar'])
+    
+    // Apache HttpClient for sending audio to .NET API
+    implementation 'org.apache.httpcomponents:httpclient:4.5.14'
+    implementation 'org.apache.httpcomponents:httpmime:4.5.14'
+    implementation 'org.apache.httpcomponents:httpcore:4.4.16'
+    
+    // JSON parsing for WebVTT response
+    implementation 'com.google.code.gson:gson:2.10.1'
+    
+    // Logging - Log4j (used by Wowza)
+    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
+}
+
+jar {
+    archiveBaseName = 'nidaros-audio-capture'
+    archiveVersion = version
+    
+    // Include all dependencies in the JAR (fat JAR)
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    manifest {
+        attributes(
+            'Implementation-Title': 'Nidaros Wowza Audio Capture Module',
+            'Implementation-Version': version,
+            'Main-Class': 'com.nidaros.wowza.NidarosAudioCaptureModule'
+        )
+    }
+}
+
+task copyJarToWowza(type: Copy, dependsOn: jar) {
+    from jar.archiveFile
+    into '../wowza/lib'
+}
+
+build.finalizedBy(copyJarToWowza)

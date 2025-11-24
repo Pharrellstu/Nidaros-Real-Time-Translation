@@ -3,6 +3,7 @@ using NidarosRTT.Infrastructure;
 using NidarosRTT.API.Hubs;
 using NidarosRTT.Core.Services;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -151,6 +152,96 @@ public class Program
             }
         });
 
+        // ====================================================================
+        // NEW WOWZA MODULE ENDPOINTS (INRT-601, INRT-602, INRT-603)
+        // ====================================================================
+
+        // WebVTT cue queue for Wowza module
+        var webvttQueue = new ConcurrentQueue<WebVTTCueDto>();
+
+        // INRT-602: New endpoint to receive audio chunks from Wowza Java module
+        app.MapPost("/api/audio/process", async (HttpContext context) =>
+        {
+            var receiveTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            Console.WriteLine($"[WOWZA-ENDPOINT] [T={receiveTime}] Received audio chunk request");
+
+            try
+            {
+                var form = await context.Request.ReadFormAsync();
+                var fileContent = form.Files["file"];
+                var streamName = form["streamName"].ToString();
+                var startTs = long.Parse(form["startTimestamp"].ToString());
+                var endTs = long.Parse(form["endTimestamp"].ToString());
+
+                if (fileContent == null || fileContent.Length == 0)
+                {
+                    context.Response.StatusCode = 400;
+                    await context.Response.WriteAsync("No audio file provided");
+                    return;
+                }
+
+                Console.WriteLine($"[WOWZA-ENDPOINT] Stream: {streamName}, Size: {fileContent.Length} bytes, " +
+                                $"Timestamps: {startTs} - {endTs}");
+
+                // Save audio file temporarily
+                var tempFolder = Path.Combine(Path.GetTempPath(), "WowzaAudioChunks");
+                Directory.CreateDirectory(tempFolder);
+                var tempFile = Path.Combine(tempFolder, $"wowza_{DateTimeOffset.UtcNow.Ticks}.wav");
+
+                using (var stream = new FileStream(tempFile, FileMode.Create))
+                {
+                    await fileContent.CopyToAsync(stream);
+                }
+
+                var saveTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                Console.WriteLine($"[WOWZA-ENDPOINT] [T={saveTime}] Saved to: {tempFile} " +
+                                $"(save latency: {saveTime - receiveTime}ms)");
+
+                // Get the processing queue from DI
+                var processingQueue = context.RequestServices.GetRequiredService<AudioProcessingQueue>();
+
+                // Create AudioChunk and enqueue (reuse existing pipeline)
+                var audioChunk = new AudioChunk(tempFile, startTs, endTs);
+                processingQueue.Enqueue(audioChunk);
+
+                var enqueueTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                Console.WriteLine($"[WOWZA-ENDPOINT] [T={enqueueTime}] Enqueued for processing " +
+                                $"(total receive latency: {enqueueTime - receiveTime}ms)");
+
+                context.Response.StatusCode = 202; // Accepted
+                await context.Response.WriteAsync("Audio chunk accepted for processing");
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[WOWZA-ENDPOINT ERROR] {ex.Message}");
+                Console.WriteLine($"[WOWZA-ENDPOINT ERROR] {ex.StackTrace}");
+                Console.ResetColor();
+
+                context.Response.StatusCode = 500;
+                await context.Response.WriteAsync($"Error: {ex.Message}");
+            }
+        });
+
+        // INRT-603: Endpoint for Wowza module to retrieve WebVTT cues
+        app.MapGet("/api/captions/webvtt", () =>
+        {
+            var cues = new List<WebVTTCueDto>();
+
+            // Dequeue all pending cues
+            while (webvttQueue.TryDequeue(out var cue))
+            {
+                cues.Add(cue);
+            }
+
+            if (cues.Count > 0)
+            {
+                Console.WriteLine($"[WEBVTT-API] Returning {cues.Count} cue(s) to Wowza module");
+            }
+
+            return Results.Json(cues);
+        });
+
         // --- Background Service Logic ---
         var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (s, e) =>
@@ -273,6 +364,25 @@ public class Program
                             {
                                 Console.ForegroundColor = ConsoleColor.Yellow;
                                 Console.WriteLine($"[SIGNALR ERROR] Failed to send: {signalrEx.Message}");
+                                Console.ResetColor();
+                            }
+
+                            // INRT-603: Also create WebVTT cue for Wowza module
+                            try
+                            {
+                                var webvttCue = new WebVTTCueDto(
+                                    chunk.wallClockStartTS,
+                                    chunk.wallClockEndTS,
+                                    translatedText,
+                                    originalText
+                                );
+                                webvttQueue.Enqueue(webvttCue);
+                                Console.WriteLine($"[WEBVTT] ✓ Enqueued cue for Wowza: {webvttCue.webvttCue.Replace("\n", " ")}");
+                            }
+                            catch (Exception webvttEx)
+                            {
+                                Console.ForegroundColor = ConsoleColor.Yellow;
+                                Console.WriteLine($"[WEBVTT ERROR] Failed to create cue: {webvttEx.Message}");
                                 Console.ResetColor();
                             }
                         }

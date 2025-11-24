@@ -43,7 +43,8 @@ namespace NidarosRTT.Infrastructure
             // -ac 1: mono channel
             // -progress pipe:1: timestamps
             // -y: overwrite output file if it exists
-            var arguments = $"-rtsp_transport tcp -i \"{_streamUrl}\" -t 5 -vn -acodec pcm_s16le -ar 16000 -ac 1 -progress pipe:1 -y \"{outputFile}\"";
+            // INRT-602: Changed from 5 seconds to 2 seconds for lower latency
+            var arguments = $"-rtsp_transport tcp -i \"{_streamUrl}\" -t 2 -vn -acodec pcm_s16le -ar 16000 -ac 1 -progress pipe:1 -y \"{outputFile}\"";
 
             var processStartInfo = new ProcessStartInfo
             {

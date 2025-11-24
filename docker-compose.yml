@@ -55,6 +55,7 @@ services:
       - TRANSCODER=disabled
       - LOG_LEVEL=WARN
       - SIMU_LIVE=enabled
+      - DOTNET_API_URL=http://api-service:5032
     ports:
       - "80:80"
       - "443:443"
@@ -62,6 +63,12 @@ services:
       - "8087:8087"
       - "6970-6999:6970-6999/udp"
       - "10000:10000/udp"
+    volumes:
+      - ./wowza/wowza-config/conf:/usr/local/WowzaStreamingEngine/conf
+      - ./wowza/lib:/usr/local/WowzaStreamingEngine/lib
+      - ./wowza/content:/usr/local/WowzaStreamingEngine/content
+    depends_on:
+      - api-service
     restart: unless-stopped
 
   # Wowza Streaming Engine Manager
