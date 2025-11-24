@@ -1,0 +1,37 @@
+WEBVTT
+
+00:00:01.000 --> 00:00:04.000
+Hello, and welcome to our sample web video.
+
+00:00:05.000 --> 00:00:09.000
+This is a demonstration of the WebVTT caption format,
+which is used for HTML5 video captioning.
+
+00:00:10.000 --> 00:00:15.000
+WebVTT (Web Video Text Tracks) is designed
+specifically for the web and HTML5 video.
+
+00:00:16.000 --> 00:00:20.000
+Unlike SRT, WebVTT supports styling
+and positioning of captions.
+
+00:00:21.000 --> 00:00:25.000
+For example, you can <c.highlight>highlight text</c>
+or <b>make it bold</b> using special tags.
+
+00:00:26.000 --> 00:00:30.000
+You can also position captions at different
+locations on the screen using cue settings.
+
+00:00:31.000 --> 00:00:35.000 position:10%,line-left align:left
+This caption is positioned on the left side.
+
+00:00:36.000 --> 00:00:40.000 position:90%,line-right align:right
+And this one is on the right side.
+
+00:00:41.000 --> 00:00:45.000
+WebVTT files start with "WEBVTT" on the first line,
+followed by an optional header.
+
+00:00:46.000 --> 00:10:00.000
+Thank you for viewing this sample WebVTT file!

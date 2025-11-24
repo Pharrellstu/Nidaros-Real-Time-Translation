@@ -77,78 +77,87 @@ public class Program
         app.MapGet("/", () => "Live Subtitle Translation Service is running.");
 
         // HLS Proxy endpoints to serve video through port 5032
-        app.MapGet("/hls/{streamName}/playlist.m3u8", async (string streamName, HttpContext context, IHttpClientFactory httpClientFactory) =>
-        {
-            try
-            {
-                var httpClient = httpClientFactory.CreateClient();
-                var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/playlist.m3u8";
-                var response = await httpClient.GetAsync(wowzaUrl);
+        // app.MapGet("/hls/{streamName}/playlist.m3u8", async (string streamName, HttpContext context, IHttpClientFactory httpClientFactory) =>
+        // {
+        //     try
+        //     {
+        //         var httpClient = httpClientFactory.CreateClient();
+        //         var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/playlist.m3u8";
+        //         var response = await httpClient.GetAsync(wowzaUrl);
 
-                if (response.IsSuccessStatusCode)
-                {
-                    var content = await response.Content.ReadAsStringAsync();
-                    // Rewrite URLs to point to our proxy
-                    content = content.Replace($"chunklist", $"/hls/{streamName}/chunklist");
+        //         if (response.IsSuccessStatusCode)
+        //         {
+        //             var content = await response.Content.ReadAsStringAsync();
+        //             // Rewrite URLs to point to our proxy
+        //             content = content.Replace($"chunklist", $"/hls/{streamName}/chunklist");
 
-                    context.Response.ContentType = "application/vnd.apple.mpegurl";
-                    context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
-                    await context.Response.WriteAsync(content);
-                }
-                else
-                {
-                    context.Response.StatusCode = 404;
-                    await context.Response.WriteAsync("Stream not found");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[HLS PROXY ERROR] playlist.m3u8: {ex.Message}");
-                context.Response.StatusCode = 500;
-                await context.Response.WriteAsync($"Error: {ex.Message}");
-            }
-        });
+        //             context.Response.ContentType = "application/vnd.apple.mpegurl";
+        //             context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        //             await context.Response.WriteAsync(content);
+        //         }
+        //         else
+        //         {
+        //             context.Response.StatusCode = 404;
+        //             await context.Response.WriteAsync("Stream not found");
+        //         }
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         Console.WriteLine($"[HLS PROXY ERROR] playlist.m3u8: {ex.Message}");
+        //         context.Response.StatusCode = 500;
+        //         await context.Response.WriteAsync($"Error: {ex.Message}");
+        //     }
+        // });
 
-        app.MapGet("/hls/{streamName}/{fileName}", async (string streamName, string fileName, HttpContext context, IHttpClientFactory httpClientFactory) =>
-        {
-            try
-            {
-                var httpClient = httpClientFactory.CreateClient();
-                var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/{fileName}";
-                var response = await httpClient.GetAsync(wowzaUrl);
+        // app.MapGet("/hls/{streamName}/{fileName}", async (string streamName, string fileName, HttpContext context, IHttpClientFactory httpClientFactory) =>
+        // {
+        //     try
+        //     {
+        //         var httpClient = httpClientFactory.CreateClient();
+        //         var wowzaUrl = $"http://wowza-trial:1935/live/{streamName}/{fileName}";
+        //         var response = await httpClient.GetAsync(wowzaUrl);
 
-                if (response.IsSuccessStatusCode)
-                {
-                    // Check if it's a manifest or segment
-                    if (fileName.EndsWith(".m3u8"))
-                    {
-                        // It's a chunklist - rewrite segment URLs
-                        var content = await response.Content.ReadAsStringAsync();
-                        content = content.Replace($"media_", $"/hls/{streamName}/media_");
+        //         if (response.IsSuccessStatusCode)
+        //         {
+        //             // Check if it's a manifest or segment
+        //             if (fileName.EndsWith(".m3u8"))
+        //             {
+        //                 // It's a chunklist - rewrite segment URLs
+        //                 var content = await response.Content.ReadAsStringAsync();
+        //                 content = content.Replace($"media_", $"/hls/{streamName}/media_");
 
-                        context.Response.ContentType = "application/vnd.apple.mpegurl";
-                        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
-                        await context.Response.WriteAsync(content);
-                    }
-                    else
-                    {
-                        // It's a media segment (.ts file)
-                        var content = await response.Content.ReadAsByteArrayAsync();
-                        context.Response.ContentType = "video/MP2T";
-                        context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
-                        await context.Response.Body.WriteAsync(content);
-                    }
-                }
-                else
-                {
-                    context.Response.StatusCode = 404;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[HLS PROXY ERROR] {fileName}: {ex.Message}");
-                context.Response.StatusCode = 500;
-            }
+        //                 context.Response.ContentType = "application/vnd.apple.mpegurl";
+        //                 context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        //                 await context.Response.WriteAsync(content);
+        //             }
+        //             else
+        //             {
+        //                 // It's a media segment (.ts file)
+        //                 var content = await response.Content.ReadAsByteArrayAsync();
+        //                 context.Response.ContentType = "video/MP2T";
+        //                 context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+        //                 await context.Response.Body.WriteAsync(content);
+        //             }
+        //         }
+        //         else
+        //         {
+        //             context.Response.StatusCode = 404;
+        //         }
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         Console.WriteLine($"[HLS PROXY ERROR] {fileName}: {ex.Message}");
+        //         context.Response.StatusCode = 500;
+        //     }
+        // });
+
+        app.MapGet("/test-captions", () => {
+            Console.WriteLine($"Called /test-captions {DateTime.Now}");
+            
+            return @"WEBVTT
+
+        00:00:00.000 --> 00:10:00.000
+        TEST CAPTION: Hello World!";
         });
 
         // --- Background Service Logic ---

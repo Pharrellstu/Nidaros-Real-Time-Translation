@@ -74,6 +74,9 @@ services:
       - "8087:8087"
       - "6970-6999:6970-6999/udp"
       - "10000:10000/udp"
+    volumes:
+      - ./wowza/wowza-config/conf:/usr/local/WowzaStreamingEngine/conf
+      - ./wowza/content:/usr/local/WowzaStreamingEngine/content
     restart: unless-stopped
 
   # Wowza Streaming Engine Manager

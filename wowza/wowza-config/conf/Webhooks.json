@@ -1,0 +1,51 @@
+{
+  "webhooks": {
+    "source": "myWSEInstanceName",
+    "filters": [
+      {
+        "id": "myAppStreamFilter",
+        "enabled": false,
+        "criteria": "vHost.*.app.myApp.appInstance.*.stream.*.state.*",
+        "targetRef": "myEndpointName"
+      },
+      {
+        "id": "myServerFilter",
+        "enabled": false,
+        "criteria": "vHost.myVhost.>",
+        "targetRef": "myEndpointName2"
+      },
+      {
+        "id": "myAppInstanceFilter",
+        "enabled": false,
+        "criteria": "vHost.myVhost2.app.*.appInstance._definst_.>",
+        "targetRef": "myEndpointName"
+      }
+    ],
+    "targets": [
+      {
+        "id": "myEndpointName",
+        "url": "https://my.site.com/",
+        "headers": [
+          { "name": "Authorization", "value": "Bearer abc123token" },
+          { "name": "X-Custom-Header", "value": "my-value" }
+        ],
+        "auth": {
+          "type": "jwt",
+          "secret": "abc123secret"
+        }
+      },
+      {
+        "id": "myEndpointName2",
+        "url": "https://my.site2.com/",
+        "headers": [
+          { "name": "Authorization", "value": "Bearer def456token" },
+          { "name": "X-Custom-Header", "value": "my-value2" }
+        ],
+        "auth": {
+          "type": "jwt",
+          "secret": "def456secret"
+        }
+      }
+    ]
+  }
+}

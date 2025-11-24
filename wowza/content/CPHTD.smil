@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<smil>
+  <head>
+    <meta name="title" content="Audio Capture Stream"/>
+  </head>
+  <body>
+    <switch>
+      <!-- Audio-only rendition for your counting stream -->
+      <audio src="CPHTD" title="Audio Stream" audio-bitrate="64000">
+        <param name="audioOnly" value="TRUE" valuetype="data"/>
+        <param name="cupertinoTag" value="EXT-X-MEDIA" valuetype="data"/>
+        <param name="cupertinoTag.GROUP-ID" value="audio" valuetype="data"/>
+      </audio>
+    </switch>
+  </body>
+</smil>
