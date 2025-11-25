@@ -35,6 +35,12 @@
 			<LiveStreamPacketizers>cupertinostreamingpacketizer, mpegdashstreamingpacketizer</LiveStreamPacketizers>
 			<!-- Properties defined here will override any properties defined in conf/Streams.xml for any streams types loaded by this application -->
 			<Properties>
+				<!-- Enable caption ingestion for live streams -->
+				<Property>
+					<Name>captionLiveIngestType</Name>
+					<Value>onTextData</Value>
+					<Type>String</Type>
+				</Property>
 			</Properties>
 		</Streams>
 		<Transcoder>
@@ -76,9 +82,11 @@
 		</TimedText>
 		<!-- HTTPStreamers (separate with commas): cupertinostreaming,   mpegdashstreaming, dvrchunkstreaming -->
 		<HTTPStreamers>cupertinostreaming, mpegdashstreaming</HTTPStreamers>
+		<!-- HTTPProvider DISABLED - Using onTextData live caption injection instead -->
+		<!--
 		<HTTPProvider>
-    		<!-- <BaseURL>http://host.docker.internal:5032/test-captions</BaseURL> -->
-    		<!-- <BaseURL>https://www.capsubservices.com/assets/downloads/web/WebVTT.vtt</BaseURL> -->
+    		<BaseURL>http://host.docker.internal:5032/test-captions</BaseURL>
+    		<BaseURL>https://www.capsubservices.com/assets/downloads/web/WebVTT.vtt</BaseURL>
 			<BaseURL>https://www.fileexamples.com/api/download?file=sample_web_video_captions.vtt&amp;type=text/vtt</BaseURL>
 		    <PollingInterval>5000</PollingInterval>
 		    <Start>0</Start>
@@ -86,6 +94,7 @@
 		    <TextType>subtitles</TextType>
 		    <Language>en</Language>
 		</HTTPProvider>
+		-->
 		<MediaCache>
 			<MediaCacheSourceList></MediaCacheSourceList>
 		</MediaCache>
@@ -204,6 +213,17 @@
 					<Value>2000</Value>
 					<Type>Integer</Type>
 				</Property>
+				<!-- Enable WebVTT caption output for HLS -->
+				<Property>
+					<Name>cupertinoCreateWebVTTCaptions</Name>
+					<Value>true</Value>
+					<Type>Boolean</Type>
+				</Property>
+				<Property>
+					<Name>cupertinoPlaylistChunkCount</Name>
+					<Value>10</Value>
+					<Type>Integer</Type>
+				</Property>
 			</Properties>
 		</LiveStreamPacketizer>
 		<HTTPStreamer>
@@ -252,6 +272,17 @@
 				<Name>pushPublishMapPath</Name>
 				<Value>${com.wowza.wms.context.VHostConfigHome}/conf/${com.wowza.wms.context.Application}/PushPublishMap.txt</Value>
 				<Type>String</Type>
+			</Property>
+			<!-- Caption configuration for onTextData to WebVTT conversion -->
+			<Property>
+				<Name>captionLiveIngestType</Name>
+				<Value>onTextData</Value>
+				<Type>String</Type>
+			</Property>
+			<Property>
+				<Name>cupertinoExtXVersion</Name>
+				<Value>3</Value>
+				<Type>Integer</Type>
 			</Property>
 		</Properties>
 		<ApplicationTimeout>0</ApplicationTimeout>

@@ -56,15 +56,14 @@ public class CaptionInjector implements Runnable {
                 String jsonResponse = EntityUtils.toString(response.getEntity());
                 
                 // Parse JSON array of WebVTT cues
-                JsonArray cues = gson.fromJson(jsonResponse, JsonArray.class);
+                WebVTTCue[] cues = gson.fromJson(jsonResponse, WebVTTCue[].class);
                 
-                if (cues != null && cues.size() > 0) {
+                if (cues != null && cues.length > 0) {
                     long pollTime = System.currentTimeMillis();
-                    logger.info("[CAPTION-INJECTOR] [T=" + pollTime + "] Received " + cues.size() + 
+                    logger.info("[CAPTION-INJECTOR] [T=" + pollTime + "] Received " + cues.length + 
                                " caption(s) from API");
                     
-                    for (JsonElement cueElement : cues) {
-                        JsonObject cue = cueElement.getAsJsonObject();
+                    for (WebVTTCue cue : cues) {
                         injectCaption(cue, pollTime);
                     }
                 }
@@ -85,13 +84,8 @@ public class CaptionInjector implements Runnable {
         }
     }
     
-    private void injectCaption(JsonObject cue, long pollTime) {
+    private void injectCaption(WebVTTCue cue, long pollTime) {
         try {
-            String webvttCue = cue.get("webvttCue").getAsString();
-            String text = cue.get("text").getAsString();
-            long startTs = cue.get("startTimestamp").getAsLong();
-            long endTs = cue.get("endTimestamp").getAsLong();
-            
             // Get all active streams in the application
             List<IMediaStream> streams = appInstance.getStreams().getStreams();
             
@@ -101,21 +95,21 @@ public class CaptionInjector implements Runnable {
             }
             
             for (IMediaStream stream : streams) {
-                // Create AMF data for onTextData event
-                AMFDataList params = new AMFDataList();
-                AMFDataObj obj = new AMFDataObj();
+                // Create AMF data for onTextData event (per Wowza documentation)
+                AMFDataMixedArray data = new AMFDataMixedArray();
                 
-                // Add caption data
-                obj.put("text", text);
-                obj.put("lang", "eng");
-                obj.put("webvtt", webvttCue);
-                obj.put("startTime", startTs);
-                obj.put("endTime", endTs);
+                // Calculate duration in milliseconds
+                long duration = cue.endTimestamp - cue.startTimestamp;
                 
-                params.add(obj);
+                // Add caption data with timing - Wowza expects 'text', 'language', 'tc' (timecode), and 'trackid'
+                data.put("text", new AMFDataItem(cue.text));
+                data.put("language", new AMFDataItem("eng"));
+                data.put("trackid", new AMFDataItem(1));
+                data.put("tc", new AMFDataItem(cue.startTimestamp));  // Stream timecode when caption should appear
+                data.put("duration", new AMFDataItem(duration));      // How long to display caption (ms)
                 
                 // Inject into stream as onTextData event
-                stream.sendDirect("onTextData", params);
+                stream.sendDirect("onTextData", data);
                 
                 totalCaptionsInjected++;
                 
@@ -124,7 +118,7 @@ public class CaptionInjector implements Runnable {
                 
                 logger.info("[CAPTION-INJECTOR] [T=" + injectTime + "] ✓ Injected caption #" + 
                            totalCaptionsInjected + " into stream '" + stream.getName() + 
-                           "': \"" + text + "\" (injection latency: " + latency + "ms)");
+                           "': \"" + cue.text + "\" (injection latency: " + latency + "ms)");
             }
             
         } catch (Exception e) {
