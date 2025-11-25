@@ -215,7 +215,7 @@
 				</Property>
 				<!-- Enable WebVTT caption output for HLS -->
 				<Property>
-					<Name>cupertinoCreateWebVTTCaptions</Name>
+					<Name>cupertinoWriteWebVTTCaptions</Name>
 					<Value>true</Value>
 					<Type>Boolean</Type>
 				</Property>

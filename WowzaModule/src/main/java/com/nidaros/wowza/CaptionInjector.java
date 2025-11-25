@@ -96,17 +96,14 @@ public class CaptionInjector implements Runnable {
             
             for (IMediaStream stream : streams) {
                 // Create AMF data for onTextData event (per Wowza documentation)
+                // Per https://www.wowza.com/docs/how-to-configure-closed-captioning-for-live-streaming
+                // onTextData requires: text, lang, and optionally trackid
                 AMFDataMixedArray data = new AMFDataMixedArray();
                 
-                // Calculate duration in milliseconds
-                long duration = cue.endTimestamp - cue.startTimestamp;
-                
-                // Add caption data with timing - Wowza expects 'text', 'language', 'tc' (timecode), and 'trackid'
+                // Add caption data - Wowza expects 'text', 'lang', and 'trackid'
                 data.put("text", new AMFDataItem(cue.text));
-                data.put("language", new AMFDataItem("eng"));
-                data.put("trackid", new AMFDataItem(1));
-                data.put("tc", new AMFDataItem(cue.startTimestamp));  // Stream timecode when caption should appear
-                data.put("duration", new AMFDataItem(duration));      // How long to display caption (ms)
+                data.put("lang", new AMFDataItem("eng"));  // Three-letter language code
+                data.put("trackid", new AMFDataItem(99));  // 99 is the special value for live streams per Wowza docs
                 
                 // Inject into stream as onTextData event
                 stream.sendDirect("onTextData", data);

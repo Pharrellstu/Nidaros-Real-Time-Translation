@@ -57,11 +57,14 @@ _ReSharper*/
 FasterWhisperService/models/
 FasterWhisperService/cache/
 
-# Wowza SDK libraries (too large for Git)
+# Wowza SDK libraries and artifacts (too large for Git)
 wowza/lib/*.jar
-!wowza/lib/nidaros-audio-capture-*.jar
 
-# Gradle cache
+# Wowza runtime files (auto-generated, should not be committed)
+**/LicenseDomainCache.properties
+wowza/wowza-config/conf/**/Server.xml
+
+# Gradle cache and build artifacts
 WowzaModule/lib/*.jar
 WowzaModule/.gradle/
 WowzaModule/build/
