@@ -26,6 +26,7 @@ public class Program
         builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl, ffmpegPath));
         builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperUrl));
         builder.Services.AddSignalR();
+        builder.Services.AddControllers();
 
         // Add HttpClient for HLS proxy and health monitoring
         builder.Services.AddHttpClient();
@@ -73,6 +74,9 @@ public class Program
         // Map the SignalR Hub
         app.MapHub<SubtitlesHub>("/subtitlesHub"); // Using camelCase is a common convention for URLs
 
+        // Map controllers
+        app.MapControllers();
+
         // Basic API route
         app.MapGet("/", () => "Live Subtitle Translation Service is running.");
 
@@ -90,6 +94,12 @@ public class Program
                     var content = await response.Content.ReadAsStringAsync();
                     // Rewrite URLs to point to our proxy
                     content = content.Replace($"chunklist", $"/hls/{streamName}/chunklist");
+
+                    // Add subtitle track information
+                    var subtitleTag = "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"English\",DEFAULT=YES,AUTOSELECT=YES,URI=\"/vtt/subtitles.m3u8\"";
+                    content = content.Insert(content.IndexOf("#EXT-X-STREAM-INF"), subtitleTag + "\n");
+                    content = content.Replace("#EXT-X-STREAM-INF:", "#EXT-X-STREAM-INF:SUBTITLES=\"subs\",");
+
 
                     context.Response.ContentType = "application/vnd.apple.mpegurl";
                     context.Response.Headers.Append("Access-Control-Allow-Origin", "*");

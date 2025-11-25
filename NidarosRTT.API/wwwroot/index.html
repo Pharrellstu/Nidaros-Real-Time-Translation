@@ -308,11 +308,17 @@
         <!-- IMPORTANT: Update this URL to your HLS stream URL -->
         <source src="http://localhost:5032/hls/OBSstream/playlist.m3u8" type="application/x-mpegURL">
         <p class="vjs-no-js">
-            To view this video please enable JavaScript, and consider upgrading to a
-            web browser that
-            <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+            To view this video please enable JavaScript, and consider upgrading to a web browser that
+            <a href="https://videojs.com/html5-video-support/" target="_blank" rel="noopener">supports HTML5 video</a>
         </p>
     </video-js>
+    <div class="subtitles-container">
+        <div id="subtitles" class="subtitles-box"></div>
+        <div class="subtitle-controls">
+            <label for="subtitle-toggle">Show Subtitles</label>
+            <input type="checkbox" id="subtitle-toggle" checked>
+        </div>
+    </div>
 </div>
 
 <!-- NEW: Controls Wrapper -->
