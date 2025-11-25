@@ -15,11 +15,13 @@ namespace NidarosRTT.Infrastructure
         private readonly string _streamUrl;
         private readonly string _tempFolder;
         private readonly string _ffmpegPath;
+        private readonly string _fprobePath;
 
         public WowzaAudioListener(string streamUrl, string ffmpegExecutablePath)
         {
             _streamUrl = streamUrl;
             _ffmpegPath = ffmpegExecutablePath;
+            _fprobePath = ffmpegExecutablePath.Replace("ffmpeg", "ffprobe");
             _tempFolder = Path.Combine(Path.GetTempPath(), "LiveSubtitleTemp");
             Directory.CreateDirectory(_tempFolder);
 
@@ -59,6 +61,7 @@ namespace NidarosRTT.Infrastructure
 
             //mark wall-clock time when starting the process for timestamping
             var wallClockStartTS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            double ptsStartTS = await GetCurrentStreamPtsAsync();
             process.Start();
 
             // Capture FFmpeg output for debugging
@@ -95,8 +98,51 @@ namespace NidarosRTT.Infrastructure
 
             //get wall-clock end timestamp
             var wallClockEndTS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            Console.WriteLine($"[AUDIOCHUNK DEBUG] {outputFile}, StartTS: {wallClockStartTS}, EndTS: {wallClockEndTS}, Difference: {(wallClockEndTS - wallClockStartTS)/1000} s");
-            return new AudioChunk(outputFile, wallClockStartTS, wallClockEndTS);
+            double ptsEndTS = await GetCurrentStreamPtsAsync();
+            Console.WriteLine($"[AUDIOCHUNK DEBUG] {outputFile}, StartPTSTS: {ptsStartTS}, EndPTSTS: {ptsEndTS}, Difference: {ptsEndTS - ptsStartTS} s");
+            return new AudioChunk(outputFile, wallClockStartTS, wallClockEndTS, ptsStartTS, ptsEndTS);
         }
+
+        public async Task<double> GetCurrentStreamPtsAsync()
+        {
+            // expecting rtsp://localhost:1935/live/OBSstream format as _streamUrl
+            // TODO: make stream source an object with variable adresses, port, etc...
+            string streamUrl_http = _streamUrl.Replace("rtsp://", "http://") + "/playlist.m3u8";
+
+            var arguments = $"-v error -show_entries packet=pts_time -select_streams a:0 -of csv=p=0 -read_intervals %+1 \"{streamUrl_http}\"";
+            
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = _fprobePath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            using var process = new Process { StartInfo = processStartInfo };
+            
+            process.Start();
+            
+            // Read the first line of output
+            var output = await process.StandardOutput.ReadLineAsync();
+            
+            await process.WaitForExitAsync();
+            
+            // Parse the PTS value (remove any trailing commas)
+            if (!string.IsNullOrWhiteSpace(output))
+            {
+                var cleanedOutput = output.Trim().TrimEnd(',');
+                if (double.TryParse(cleanedOutput, System.Globalization.NumberStyles.Float, 
+                                System.Globalization.CultureInfo.InvariantCulture, out var pts))
+                {
+                    return pts;
+                }
+            }
+            
+            throw new InvalidOperationException("Failed to retrieve PTS timestamp from stream");
+        }
+
     }
 }
