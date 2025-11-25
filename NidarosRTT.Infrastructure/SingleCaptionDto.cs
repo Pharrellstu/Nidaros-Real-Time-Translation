@@ -34,6 +34,7 @@ namespace NidarosRTT.Infrastructure
 
         public long wallClockStartTS { get; set; }
         public long wallClockEndTS { get; set; }
+        public double ptsStart { get; set; }
 
         public SingleCaptionDto(
             string text,
@@ -43,7 +44,8 @@ namespace NidarosRTT.Infrastructure
             string sourceLanguage,
             string? targetLanguage,
             long wallClockStartTS,
-            long wallClockEndTS)
+            long wallClockEndTS,
+            double ptsStart)
         {
             this.text = text;
             this.originalText = originalText;
@@ -53,11 +55,12 @@ namespace NidarosRTT.Infrastructure
             this.targetLanguage = targetLanguage;
             this.wallClockStartTS = wallClockStartTS;
             this.wallClockEndTS = wallClockEndTS;
+            this.ptsStart = ptsStart;
         }
 
         // Backwards compatibility constructor
         public SingleCaptionDto(string text, long wallClockStartTS, long wallClockEndTS)
-            : this(text, text, true, "success", "nl", "en", wallClockStartTS, wallClockEndTS)
+            : this(text, text, true, "success", "nl", "en", wallClockStartTS, wallClockEndTS, 0)
         {
         }
     }

@@ -165,6 +165,7 @@ public class Program
         var whisperService = app.Services.GetRequiredService<IWhisperService>();
         var hubContext = app.Services.GetRequiredService<IHubContext<SubtitlesHub>>();
         var healthMonitor = app.Services.GetRequiredService<ITranslationHealthMonitor>();
+        var vttGenerator = new VttSubtitleGenerator(Path.Combine("wwwroot", "vtt"));
 
         // Subscribe to health status changes and broadcast to clients
         healthMonitor.StatusChanged += async (sender, e) =>
@@ -208,8 +209,7 @@ public class Program
                     }
                     else
                     {
-                        Console.WriteLine("[CAPTURE] ✗ No audio file captured (stream may be down). Retrying in 5s...");
-                        await Task.Delay(5000, cts.Token);
+                        Console.WriteLine("[CAPTURE] ✗ No audio file captured (stream may be down)");
                     }
                 }
                 catch (OperationCanceledException) { }
@@ -251,6 +251,10 @@ public class Program
                             Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {translatedText}");
                             Console.ResetColor();
 
+                            // Generate VTT file
+                            var vttFilePath = await vttGenerator.GenerateVttFileAsync(translatedText, chunk.ptsStartTS, chunk.ptsStartTS + 5);
+                            Console.WriteLine($"[VTT] Generated: {vttFilePath}");
+
                             // Create DTO with translation status
                             var dto = new SingleCaptionDto(
                                 text: translatedText,
@@ -260,7 +264,8 @@ public class Program
                                 sourceLanguage: transcriptionResult.SourceLanguage ?? "en",
                                 targetLanguage: transcriptionResult.TargetLanguage ?? "nl",
                                 wallClockStartTS: chunk.wallClockStartTS,
-                                wallClockEndTS: chunk.wallClockEndTS
+                                wallClockEndTS: chunk.wallClockEndTS,
+                                ptsStart: chunk.ptsStartTS
                             );
 
                             // Send to all connected web clients

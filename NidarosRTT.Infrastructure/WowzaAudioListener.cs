@@ -98,9 +98,8 @@ namespace NidarosRTT.Infrastructure
 
             //get wall-clock end timestamp
             var wallClockEndTS = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            double ptsEndTS = await GetCurrentStreamPtsAsync();
-            Console.WriteLine($"[AUDIOCHUNK DEBUG] {outputFile}, StartPTSTS: {ptsStartTS}, EndPTSTS: {ptsEndTS}, Difference: {ptsEndTS - ptsStartTS} s");
-            return new AudioChunk(outputFile, wallClockStartTS, wallClockEndTS, ptsStartTS, ptsEndTS);
+            Console.WriteLine($"[AUDIOCHUNK DEBUG] {outputFile}, StartPTSTS: {ptsStartTS}");
+            return new AudioChunk(outputFile, wallClockStartTS, wallClockEndTS, ptsStartTS);
         }
 
         public async Task<double> GetCurrentStreamPtsAsync()

@@ -47,11 +47,13 @@ RUN git clone --depth=1 https://github.com/xiph/rnnoise.git /tmp/rnnoise && \
     chmod +x /app/rnnoise_demo && \
     rm -rf /tmp/rnnoise
 
-# Create non-root user (optional)
+# Create a non-root user
 RUN useradd -m appuser
-USER appuser
 
-COPY --from=build /app/publish ./
+# Copy the published output and set ownership
+COPY --from=build --chown=appuser:appuser /app/publish ./
+
+USER appuser
 
 # Expose app port
 EXPOSE 5032
