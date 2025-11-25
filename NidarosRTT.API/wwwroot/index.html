@@ -26,6 +26,56 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
             border-radius: 8px;
             overflow: hidden;
+            position: relative; /* Enable positioning for overlay */
+        }
+
+        /* Video Subtitle Overlay */
+        #video-subtitle-overlay {
+            position: absolute;
+            bottom: 80px; /* Position above video controls */
+            left: 0;
+            right: 0;
+            z-index: 9999; /* Much higher to appear above Video.js layers */
+            pointer-events: none; /* Allow clicking through to video controls */
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding: 0 20px;
+        }
+
+        #video-subtitle-overlay .subtitle-text {
+            background-color: rgba(0, 0, 0, 0.75);
+            color: #ffffff;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 1.5em;
+            font-weight: 600;
+            text-align: center;
+            max-width: 90%;
+            line-height: 1.4;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            transition: opacity 0.3s ease;
+        }
+
+        #video-subtitle-overlay.hidden .subtitle-text {
+            opacity: 0;
+        }
+
+        /* Subtitle size variations for video overlay */
+        #video-subtitle-overlay.size-small .subtitle-text {
+            font-size: 1em;
+        }
+
+        #video-subtitle-overlay.size-medium .subtitle-text {
+            font-size: 1.25em;
+        }
+
+        #video-subtitle-overlay.size-normal .subtitle-text {
+            font-size: 1.5em;
+        }
+
+        #video-subtitle-overlay.size-large .subtitle-text {
+            font-size: 2em;
         }
 
         #subtitle-display {
@@ -313,6 +363,11 @@
             <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
         </p>
     </video-js>
+    
+    <!-- Video Subtitle Overlay -->
+    <div id="video-subtitle-overlay">
+        <div class="subtitle-text">Waiting for transcription...</div>
+    </div>
 </div>
 
 <!-- NEW: Controls Wrapper -->
@@ -404,6 +459,14 @@
 
         // 2. Get subtitle elements and toggle
         const subtitleDisplay = document.getElementById('subtitle-display');
+        const videoSubtitleOverlay = document.getElementById('video-subtitle-overlay');
+        const videoSubtitleText = videoSubtitleOverlay.querySelector('.subtitle-text');
+        
+        // IMPORTANT: Move subtitle overlay inside Video.js player for fullscreen support
+        const playerEl = document.getElementById('live-video');
+        if (videoSubtitleOverlay && playerEl) {
+            playerEl.appendChild(videoSubtitleOverlay);
+        }
         const subtitleToggle = document.getElementById('subtitle-toggle');
         const languageSelect = document.getElementById('language-select');
         const connectionStatus = document.getElementById('connection-status');
@@ -455,10 +518,12 @@
         });
 
         function applySubtitleSize(size) {
-            // Remove all size classes
+            // Remove all size classes from both displays
             subtitleDisplay.classList.remove('size-small', 'size-medium', 'size-normal', 'size-large');
-            // Add the selected size class
+            videoSubtitleOverlay.classList.remove('size-small', 'size-medium', 'size-normal', 'size-large');
+            // Add the selected size class to both
             subtitleDisplay.classList.add(`size-${size}`);
+            videoSubtitleOverlay.classList.add(`size-${size}`);
             
             // Update active state in dropdown
             sizeOptions.forEach(opt => opt.classList.remove('active'));
@@ -472,6 +537,7 @@
         // Apply initial subtitle visibility
         if (!subtitlesEnabled) {
             subtitleDisplay.classList.add('hidden');
+            videoSubtitleOverlay.classList.add('hidden');
         }
 
         // 4. Handle subtitle toggle
@@ -484,10 +550,13 @@
             // Show/hide subtitles immediately
             if (subtitlesEnabled) {
                 subtitleDisplay.classList.remove('hidden');
+                videoSubtitleOverlay.classList.remove('hidden');
                 updateActiveSubtitles();
             } else {
                 subtitleDisplay.classList.add('hidden');
+                videoSubtitleOverlay.classList.add('hidden');
                 subtitleDisplay.textContent = '';
+                videoSubtitleText.textContent = '';
                 activeSubtitles = [];
             }
         });
@@ -504,6 +573,7 @@
         function updateActiveSubtitles() {
             if (!subtitlesEnabled) {
                 subtitleDisplay.textContent = '';
+                videoSubtitleText.textContent = '';
                 return;
             }
 
@@ -513,7 +583,9 @@
 
             if (activeSubtitles.length === 0) {
                 // Use a placeholder text when no subtitles are active
-                subtitleDisplay.textContent = 'Waiting for transcription...';
+                const placeholderText = 'Waiting for transcription...';
+                subtitleDisplay.textContent = placeholderText;
+                videoSubtitleText.textContent = placeholderText;
             } else {
                 // Show up to 2 most recent subtitles
                 const subtitlesToShow = activeSubtitles.slice(-2);
@@ -522,6 +594,7 @@
                     return selectedLanguage === 'original' ? caption.originalText : caption.text;
                 }).join(' • ');
                 subtitleDisplay.textContent = displayText;
+                videoSubtitleText.textContent = displayText;
             }
         }
 
