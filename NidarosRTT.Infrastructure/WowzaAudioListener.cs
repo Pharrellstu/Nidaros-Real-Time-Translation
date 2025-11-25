@@ -71,7 +71,7 @@ namespace NidarosRTT.Infrastructure
             if (process.ExitCode != 0)
             {
                 Console.WriteLine($"[FFMPEG ERROR] Exit code: {process.ExitCode}");
-                Console.WriteLine($"[FFMPEG ERROR] {errorOutput}");
+                // Console.WriteLine($"[FFMPEG ERROR] {errorOutput}");
                 return null;
             }
 
