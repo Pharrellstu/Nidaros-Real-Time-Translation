@@ -79,8 +79,8 @@
 		<HTTPProvider>
     		<!-- <BaseURL>http://host.docker.internal:5032/test-captions</BaseURL> -->
     		<!-- <BaseURL>https://www.capsubservices.com/assets/downloads/web/WebVTT.vtt</BaseURL> -->
-			<BaseURL>http://wse.docker:1935/live/sample_web_video_captions.vtt</BaseURL>
-		    <PollingInterval>5000</PollingInterval>
+			<BaseURL>http://api-service:5032/captions/live/OBSstream/webvtt</BaseURL>
+		    <PollingInterval>1000</PollingInterval>
 		    <Start>0</Start>
 		    <Length>0</Length>
 		    <TextType>subtitles</TextType>
@@ -198,6 +198,11 @@
 					<Name>cupertinoChunkDurationTarget</Name>
 					<Value>2000</Value>
 					<Type>Integer</Type>
+				</Property>
+				<Property>
+					<Name>cupertinoLiveCaptionsUseWebVTT</Name>
+					<Value>true</Value>
+					<Type>Boolean</Type>
 				</Property>
 				<Property>
 					<Name>mpegdashChunkDurationTarget</Name>

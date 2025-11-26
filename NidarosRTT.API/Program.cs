@@ -15,9 +15,13 @@ public class Program
         // --- Configuration ---
         var streamUrl = Environment.GetEnvironmentVariable("STREAM_URL")
                         ?? "rtsp://localhost:1935/live/OBSstream";
+        var streamName = ExtractStreamName(streamUrl);
         var whisperUrl = Environment.GetEnvironmentVariable("WHISPER_URL")
                          ?? "http://localhost:5001/transcribe";
         var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "C:/Users/xxxam/Downloads/ffmpeg-8.0-essentials_build/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe";
+        var vttWindowSeconds = int.TryParse(Environment.GetEnvironmentVariable("WEBVTT_WINDOW_SECONDS"), out var parsedWindow)
+            ? Math.Clamp(parsedWindow, 30, 600)
+            : 120;
 
         var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +29,7 @@ public class Program
         builder.Services.AddSingleton<AudioProcessingQueue>();
         builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl, ffmpegPath));
         builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperUrl));
+        builder.Services.AddSingleton(new LiveWebVttBuffer(TimeSpan.FromSeconds(vttWindowSeconds)));
         builder.Services.AddSignalR();
 
         // Add HttpClient for HLS proxy and health monitoring
@@ -72,6 +77,12 @@ public class Program
 
         // Map the SignalR Hub
         app.MapHub<SubtitlesHub>("/subtitlesHub"); // Using camelCase is a common convention for URLs
+
+        app.MapGet("/captions/live/{streamName}/webvtt", (string streamName, LiveWebVttBuffer buffer) =>
+        {
+            var payload = buffer.BuildWebVtt(streamName);
+            return Results.Text(payload, "text/vtt");
+        });
 
         // Basic API route
         app.MapGet("/", () => "Live Subtitle Translation Service is running.");
@@ -173,6 +184,7 @@ public class Program
         var processingQueue = app.Services.GetRequiredService<AudioProcessingQueue>();
         var whisperService = app.Services.GetRequiredService<IWhisperService>();
         var hubContext = app.Services.GetRequiredService<IHubContext<SubtitlesHub>>();
+        var vttBuffer = app.Services.GetRequiredService<LiveWebVttBuffer>();
         var healthMonitor = app.Services.GetRequiredService<ITranslationHealthMonitor>();
 
         // Subscribe to health status changes and broadcast to clients
@@ -277,6 +289,8 @@ public class Program
                             {
                                 await hubContext.Clients.All.SendAsync("ReceiveTranscription", dto);
                                 Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.text}");
+
+                                vttBuffer.Append(streamName, dto);
                             }
                             catch (Exception signalrEx)
                             {
@@ -313,5 +327,22 @@ public class Program
 
         _ = app.RunAsync(cts.Token);
         await Task.WhenAll(allTasks);
+    }
+
+    private static string ExtractStreamName(string streamUrl)
+    {
+        if (string.IsNullOrWhiteSpace(streamUrl))
+        {
+            return "live";
+        }
+
+        var sanitized = streamUrl.TrimEnd('/');
+        var lastSlashIndex = sanitized.LastIndexOf('/');
+        if (lastSlashIndex >= 0 && lastSlashIndex < sanitized.Length - 1)
+        {
+            return sanitized[(lastSlashIndex + 1)..];
+        }
+
+        return sanitized;
     }
 }
