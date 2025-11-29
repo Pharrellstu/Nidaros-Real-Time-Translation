@@ -11,6 +11,11 @@ namespace NidarosRTT.Infrastructure
         /// Format text into captions with proper line breaking
         /// </summary>
         List<Caption> FormatText(string text, TimeSpan start, TimeSpan end, string language = "en");
+
+        /// <summary>
+        /// Format transcription result with stream time offset for proper VTT timing
+        /// </summary>
+        List<Caption> FormatWithOffset(string text, TimeSpan whisperStart, TimeSpan whisperEnd, TimeSpan streamOffset, string language = "en");
     }
 
     /// <summary>
@@ -31,6 +36,15 @@ namespace NidarosRTT.Infrastructure
         {
             _maxLineLength = maxLineLength;
             _maxLinesPerCaption = maxLinesPerCaption;
+        }
+
+        public List<Caption> FormatWithOffset(string text, TimeSpan whisperStart, TimeSpan whisperEnd, TimeSpan streamOffset, string language = "en")
+        {
+            // Add stream offset to Whisper's relative timing
+            var absoluteStart = streamOffset + whisperStart;
+            var absoluteEnd = streamOffset + whisperEnd;
+
+            return FormatText(text, absoluteStart, absoluteEnd, language);
         }
 
         public List<Caption> FormatText(string text, TimeSpan start, TimeSpan end, string language = "en")

@@ -29,6 +29,7 @@ public class Program
         builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperUrl));
         builder.Services.AddSingleton<ICaptionFormatter>(new CaptionFormatter(maxLineLength: 37, maxLinesPerCaption: 2));
         builder.Services.AddSingleton<IVttWriter>(new VttWriter(vttOutputPath));
+        builder.Services.AddSingleton<IStreamTimingTracker, StreamTimingTracker>();
         builder.Services.AddSignalR();
 
         // Add HttpClient for HLS proxy and health monitoring
@@ -198,12 +199,14 @@ public class Program
         var healthMonitor = app.Services.GetRequiredService<ITranslationHealthMonitor>();
         var captionFormatter = app.Services.GetRequiredService<ICaptionFormatter>();
         var vttWriter = app.Services.GetRequiredService<IVttWriter>();
+        var streamTimingTracker = app.Services.GetRequiredService<IStreamTimingTracker>();
 
         // Initialize VTT file for this stream
         vttWriter.Initialize(streamName);
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine($"[VTT WRITER] Initialized VTT file for stream: {streamName}");
         Console.WriteLine($"[VTT WRITER] Output path: {vttOutputPath}/{streamName}.vtt");
+        Console.WriteLine($"[STREAM TIMING] Timing tracker initialized");
         Console.ResetColor();
 
         // Subscribe to health status changes and broadcast to clients
@@ -291,19 +294,23 @@ public class Program
                             Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {translatedText}");
                             Console.ResetColor();
 
-                            // ===== VTT FILE GENERATION =====
+                            // ===== VTT FILE GENERATION WITH STREAM TIMING =====
                             try
                             {
-                                // Get timing from Whisper result
-                                var startTime = transcriptionResult.GetStartTime();
-                                var endTime = transcriptionResult.GetEndTime();
+                                // Calculate stream offset from chunk's wall-clock timestamp
+                                var streamOffset = streamTimingTracker.GetStreamTimeOffset(chunk);
 
-                                // Format text into captions (handles line breaking, punctuation, etc.)
-                                var captions = captionFormatter.FormatText(
-                                    translatedText, 
-                                    startTime, 
-                                    endTime, 
-                                    language: "en"
+                                // Get timing from Whisper result (relative to chunk)
+                                var whisperStart = transcriptionResult.GetStartTime();
+                                var whisperEnd = transcriptionResult.GetEndTime();
+
+                                // Format text into captions with absolute stream timing
+                                var captions = captionFormatter.FormatWithOffset(
+                                    translatedText,
+                                    whisperStart,
+                                    whisperEnd,
+                                    streamOffset,  // ← This adds cumulative time!
+                                    language: "nl"
                                 );
 
                                 // Write all captions to VTT file
@@ -311,7 +318,7 @@ public class Program
                                 {
                                     await vttWriter.AppendCaptionAsync(caption);
                                     Console.ForegroundColor = ConsoleColor.Cyan;
-                                    Console.WriteLine($"[VTT-{Task.CurrentId}] {caption.Start:hh\\:mm\\:ss\\.fff} → {caption.End:hh\\:mm\\:ss\\.fff}: {caption.Text.Replace("\n", " | ")}");
+                                    Console.WriteLine($"[VTT-{Task.CurrentId}] Stream@{streamOffset:hh\\:mm\\:ss} + Whisper {whisperStart.TotalSeconds:F1}s = {caption.Start:hh\\:mm\\:ss\\.fff} → {caption.End:hh\\:mm\\:ss\\.fff}: {caption.Text.Replace("\n", " | ")}");
                                     Console.ResetColor();
                                 }
                             }
