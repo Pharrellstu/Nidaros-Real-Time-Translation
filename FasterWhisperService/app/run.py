@@ -63,19 +63,19 @@ async def transcribe(file: UploadFile = File(...)):
         start_seconds = segment_list[0].start if segment_list else 0.0
         end_seconds = segment_list[-1].end if segment_list else 5.0
         
-        logger.info(f"[TRANSCRIPTION] Original: {text} (start: {start_seconds}s, end: {end_seconds}s)")
+        logger.info(f"[TRANSCRIPTION] English: {text} (start: {start_seconds}s, end: {end_seconds}s)")
         
-        # Translate the text and get status
-        translated_text, translation_status = translate_text(text)
-        
-        logger.info(f"[TRANSLATION] Translated: {translated_text} (Status: {translation_status})")
+        # TRANSLATION DISABLED FOR NOW - Using English-only mode
+        # To re-enable: uncomment the lines below
+        # translated_text, translation_status = translate_text(text)
+        # logger.info(f"[TRANSLATION] Translated: {translated_text} (Status: {translation_status})")
         
         return {
             "original_text": text,
-            "translated_text": translated_text if translated_text else text,
-            "translation_status": translation_status,
+            "translated_text": text,  # Using English text directly (no translation)
+            "translation_status": "disabled",
             "source_language": "en",
-            "target_language": "nl",
+            "target_language": "en",  # Changed to "en" since no translation
             "start_seconds": start_seconds,
             "end_seconds": end_seconds
         }

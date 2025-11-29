@@ -2,13 +2,15 @@ version: '3.8'
 
 services:
   # Argos Translator Service (Python Flask)
-  translator-service:
-    build:
-      context: ./TranslatorService
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
-    restart: unless-stopped
+  # DISABLED FOR NOW - Using English-only mode
+  # To re-enable: uncomment this entire section and update depends_on in other services
+  # translator-service:
+  #   build:
+  #     context: ./TranslatorService
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "5000:5000"
+  #   restart: unless-stopped
 
   # Faster-Whisper Transcription Service (Python/FastAPI)
   whisper-service:
@@ -18,9 +20,12 @@ services:
     ports:
       - "5001:5001"
     environment:
-      - TRANSLATION_SERVICE_URL=http://translator-service:5000/translate
-    depends_on:
-      - translator-service
+      - MODEL_NAME=small.en  # English-only model for better accuracy
+      - DEVICE=cpu           # Change to "cuda" if you have NVIDIA GPU
+      - COMPUTE_TYPE=int8    # Use "float16" with GPU
+      # Translation disabled - keeping variable for future use
+      # - TRANSLATION_SERVICE_URL=http://translator-service:5000/translate
+    # Removed depends_on translator-service since it's disabled
     restart: unless-stopped
 
   # The main .NET API
@@ -33,7 +38,8 @@ services:
     environment:
       # Use the service name 'whisper-service' for communication inside Docker
       - WHISPER_URL=http://whisper-service:5001/transcribe
-      - TRANSLATOR_URL=http://translator-service:5000
+      # Translator disabled - keeping variable for future use
+      # - TRANSLATOR_URL=http://translator-service:5000
       - STREAM_URL=rtsp://wowza-trial:1935/live/OBSstream
       - STREAM_NAME=OBSstream
       - VTT_OUTPUT_PATH=/shared_content/vtt
@@ -44,7 +50,7 @@ services:
       - shared_content:/shared_content
     depends_on:
       - whisper-service
-      - translator-service
+      # Removed translator-service dependency since it's disabled
     restart: unless-stopped
 
   # Wowza Streaming Engine Trial

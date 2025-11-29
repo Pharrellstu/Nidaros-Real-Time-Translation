@@ -286,12 +286,12 @@ public class Program
                         // Check the result object
                         if (transcriptionResult != null && (!string.IsNullOrWhiteSpace(transcriptionResult.OriginalText) || !string.IsNullOrWhiteSpace(transcriptionResult.TranslatedText)))
                         {
-                            // Ensure we have fallbacks
-                            var originalText = (transcriptionResult.OriginalText ?? transcriptionResult.TranslatedText ?? "").Trim();
-                            var translatedText = (transcriptionResult.TranslatedText ?? transcriptionResult.OriginalText ?? "").Trim();
+                            // USING ENGLISH-ONLY MODE (translation disabled)
+                            // Both original and translated should be the same English text
+                            var englishText = (transcriptionResult.OriginalText ?? transcriptionResult.TranslatedText ?? "").Trim();
 
                             Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {translatedText}");
+                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {englishText}");
                             Console.ResetColor();
 
                             // ===== VTT FILE GENERATION WITH STREAM TIMING =====
@@ -306,11 +306,11 @@ public class Program
 
                                 // Format text into captions with absolute stream timing
                                 var captions = captionFormatter.FormatWithOffset(
-                                    translatedText,
+                                    englishText,  // Using English text directly (no translation)
                                     whisperStart,
                                     whisperEnd,
                                     streamOffset,  // ← This adds cumulative time!
-                                    language: "nl"
+                                    language: "en"  // Changed from "nl" to "en"
                                 );
 
                                 // Write all captions to VTT file
@@ -330,14 +330,14 @@ public class Program
                             }
                             // ===== END VTT GENERATION =====
 
-                            // Create DTO with translation status
+                            // Create DTO with translation status (translation disabled)
                             var dto = new SingleCaptionDto(
-                                text: translatedText,
-                                originalText: originalText,
-                                translationAvailable: !string.IsNullOrEmpty(transcriptionResult.TranslatedText),
-                                translationStatus: transcriptionResult.TranslationStatus ?? "success",
-                                sourceLanguage: transcriptionResult.SourceLanguage ?? "en",
-                                targetLanguage: transcriptionResult.TargetLanguage ?? "nl",
+                                text: englishText,
+                                originalText: englishText,  // Same as text since no translation
+                                translationAvailable: false,  // Translation disabled
+                                translationStatus: "disabled",
+                                sourceLanguage: "en",
+                                targetLanguage: "en",  // Changed from "nl"
                                 wallClockStartTS: chunk.wallClockStartTS,
                                 wallClockEndTS: chunk.wallClockEndTS
                             );
