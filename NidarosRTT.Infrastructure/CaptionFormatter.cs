@@ -25,17 +25,20 @@ namespace NidarosRTT.Infrastructure
     /// - Max 2-4 lines per caption (configurable, default 2)
     /// - Break at punctuation: . ? ! , ;
     /// - Speaker change (>>) starts new caption
+    /// - Minimum 2.0 seconds per caption for readability
     /// </summary>
     public class CaptionFormatter : ICaptionFormatter
     {
         private readonly int _maxLineLength;
         private readonly int _maxLinesPerCaption;
+        private readonly double _minCaptionDurationSeconds;
         private readonly char[] _punctuationTerminators = { '.', '?', '!', ',', ';' };
 
-        public CaptionFormatter(int maxLineLength = 37, int maxLinesPerCaption = 2)
+        public CaptionFormatter(int maxLineLength = 37, int maxLinesPerCaption = 2, double minCaptionDurationSeconds = 2.0)
         {
             _maxLineLength = maxLineLength;
             _maxLinesPerCaption = maxLinesPerCaption;
+            _minCaptionDurationSeconds = minCaptionDurationSeconds;
         }
 
         public List<Caption> FormatWithOffset(string text, TimeSpan whisperStart, TimeSpan whisperEnd, TimeSpan streamOffset, string language = "en")
@@ -81,11 +84,11 @@ namespace NidarosRTT.Infrastructure
 
         private List<Caption> FormatSegment(string text, TimeSpan start, TimeSpan end, string language)
         {
-            var captions = new List<Caption>();
+            var captionTexts = new List<string>();
             var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             
             if (words.Length == 0)
-                return captions;
+                return new List<Caption>();
 
             var lines = new List<string>();
             var currentLine = new StringBuilder();
@@ -106,11 +109,10 @@ namespace NidarosRTT.Infrastructure
                         lines.Add(currentLine.ToString());
                         currentLine.Clear();
 
-                        // If we've reached max lines, create a caption
+                        // If we've reached max lines, create a caption text
                         if (lines.Count >= _maxLinesPerCaption)
                         {
-                            var caption = CreateCaptionFromLines(lines, captions.Count, words.Length, start, end, language);
-                            captions.Add(caption);
+                            captionTexts.Add(string.Join("\n", lines));
                             lines.Clear();
                         }
                     }
@@ -124,11 +126,10 @@ namespace NidarosRTT.Infrastructure
                         currentLine.Clear();
                     }
 
-                    // If we've reached max lines, create a caption
+                    // If we've reached max lines, create a caption text
                     if (lines.Count >= _maxLinesPerCaption)
                     {
-                        var caption = CreateCaptionFromLines(lines, captions.Count, words.Length, start, end, language);
-                        captions.Add(caption);
+                        captionTexts.Add(string.Join("\n", lines));
                         lines.Clear();
                     }
 
@@ -145,21 +146,50 @@ namespace NidarosRTT.Infrastructure
 
             if (lines.Count > 0)
             {
-                var caption = CreateCaptionFromLines(lines, captions.Count, words.Length, start, end, language);
+                captionTexts.Add(string.Join("\n", lines));
+            }
+
+            // Now create Caption objects with proper timing
+            var captions = new List<Caption>();
+            var totalCaptionCount = captionTexts.Count;
+
+            for (int i = 0; i < captionTexts.Count; i++)
+            {
+                var caption = CreateCaptionFromLines(captionTexts[i], i, totalCaptionCount, start, end, language);
                 captions.Add(caption);
             }
 
             return captions;
         }
 
-        private Caption CreateCaptionFromLines(List<string> lines, int captionIndex, int totalWords, TimeSpan start, TimeSpan end, string language)
+        private Caption CreateCaptionFromLines(string text, int captionIndex, int totalCaptionCount, TimeSpan start, TimeSpan end, string language)
         {
-            var text = string.Join("\n", lines);
-            var duration = end - start;
+            var totalDuration = end - start;
 
-            // Distribute timing evenly if multiple captions
-            var captionStart = start + (duration * captionIndex / Math.Max(1, totalWords));
-            var captionEnd = captionStart + (duration / Math.Max(1, totalWords / _maxLinesPerCaption));
+            // If only one caption, use the full duration
+            if (totalCaptionCount <= 1)
+            {
+                // Enforce minimum duration for readability
+                var duration = totalDuration;
+                if (duration.TotalSeconds < _minCaptionDurationSeconds)
+                {
+                    duration = TimeSpan.FromSeconds(_minCaptionDurationSeconds);
+                }
+                
+                return new Caption(start, start + duration, text, language);
+            }
+
+            // Multiple captions: distribute time evenly
+            var durationPerCaption = TimeSpan.FromSeconds(totalDuration.TotalSeconds / totalCaptionCount);
+            
+            // Enforce minimum duration
+            if (durationPerCaption.TotalSeconds < _minCaptionDurationSeconds)
+            {
+                durationPerCaption = TimeSpan.FromSeconds(_minCaptionDurationSeconds);
+            }
+
+            var captionStart = start + (durationPerCaption * captionIndex);
+            var captionEnd = captionStart + durationPerCaption;
 
             return new Caption(captionStart, captionEnd, text, language);
         }
