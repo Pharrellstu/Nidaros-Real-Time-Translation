@@ -18,6 +18,8 @@ public class Program
         var whisperUrl = Environment.GetEnvironmentVariable("WHISPER_URL")
                          ?? "http://localhost:5001/transcribe";
         var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "C:/Users/xxxam/Downloads/ffmpeg-8.0-essentials_build/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe";
+        var vttOutputPath = Environment.GetEnvironmentVariable("VTT_OUTPUT_PATH") ?? "./vtt_output";
+        var streamName = Environment.GetEnvironmentVariable("STREAM_NAME") ?? "OBSstream";
 
         var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +27,8 @@ public class Program
         builder.Services.AddSingleton<AudioProcessingQueue>();
         builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl, ffmpegPath));
         builder.Services.AddSingleton<IWhisperService>(new WhisperService(whisperUrl));
+        builder.Services.AddSingleton<ICaptionFormatter>(new CaptionFormatter(maxLineLength: 37, maxLinesPerCaption: 2));
+        builder.Services.AddSingleton<IVttWriter>(new VttWriter(vttOutputPath));
         builder.Services.AddSignalR();
 
         // Add HttpClient for HLS proxy and health monitoring
@@ -165,6 +169,15 @@ public class Program
         var whisperService = app.Services.GetRequiredService<IWhisperService>();
         var hubContext = app.Services.GetRequiredService<IHubContext<SubtitlesHub>>();
         var healthMonitor = app.Services.GetRequiredService<ITranslationHealthMonitor>();
+        var captionFormatter = app.Services.GetRequiredService<ICaptionFormatter>();
+        var vttWriter = app.Services.GetRequiredService<IVttWriter>();
+
+        // Initialize VTT file for this stream
+        vttWriter.Initialize(streamName);
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine($"[VTT WRITER] Initialized VTT file for stream: {streamName}");
+        Console.WriteLine($"[VTT WRITER] Output path: {vttOutputPath}/{streamName}.vtt");
+        Console.ResetColor();
 
         // Subscribe to health status changes and broadcast to clients
         healthMonitor.StatusChanged += async (sender, e) =>
@@ -250,6 +263,38 @@ public class Program
                             Console.ForegroundColor = ConsoleColor.Green;
                             Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {translatedText}");
                             Console.ResetColor();
+
+                            // ===== VTT FILE GENERATION =====
+                            try
+                            {
+                                // Get timing from Whisper result
+                                var startTime = transcriptionResult.GetStartTime();
+                                var endTime = transcriptionResult.GetEndTime();
+
+                                // Format text into captions (handles line breaking, punctuation, etc.)
+                                var captions = captionFormatter.FormatText(
+                                    translatedText, 
+                                    startTime, 
+                                    endTime, 
+                                    language: "en"
+                                );
+
+                                // Write all captions to VTT file
+                                foreach (var caption in captions)
+                                {
+                                    await vttWriter.AppendCaptionAsync(caption);
+                                    Console.ForegroundColor = ConsoleColor.Cyan;
+                                    Console.WriteLine($"[VTT-{Task.CurrentId}] {caption.Start:hh\\:mm\\:ss\\.fff} → {caption.End:hh\\:mm\\:ss\\.fff}: {caption.Text.Replace("\n", " | ")}");
+                                    Console.ResetColor();
+                                }
+                            }
+                            catch (Exception vttEx)
+                            {
+                                Console.ForegroundColor = ConsoleColor.Yellow;
+                                Console.WriteLine($"[VTT ERROR-{Task.CurrentId}] Failed to write VTT: {vttEx.Message}");
+                                Console.ResetColor();
+                            }
+                            // ===== END VTT GENERATION =====
 
                             // Create DTO with translation status
                             var dto = new SingleCaptionDto(

@@ -53,10 +53,17 @@ async def transcribe(file: UploadFile = File(...)):
             vad_parameters=dict(min_silence_duration_ms=500)
         )
         
-        # Join all segments into one text
-        text = " ".join([segment.text.strip() for segment in segments])
+        # Convert generator to list to extract timing info
+        segment_list = list(segments)
         
-        logger.info(f"[TRANSCRIPTION] Original: {text}")
+        # Join all segments into one text
+        text = " ".join([segment.text.strip() for segment in segment_list])
+        
+        # Extract timing from first and last segments
+        start_seconds = segment_list[0].start if segment_list else 0.0
+        end_seconds = segment_list[-1].end if segment_list else 5.0
+        
+        logger.info(f"[TRANSCRIPTION] Original: {text} (start: {start_seconds}s, end: {end_seconds}s)")
         
         # Translate the text and get status
         translated_text, translation_status = translate_text(text)
@@ -68,7 +75,9 @@ async def transcribe(file: UploadFile = File(...)):
             "translated_text": translated_text if translated_text else text,
             "translation_status": translation_status,
             "source_language": "en",
-            "target_language": "nl"
+            "target_language": "nl",
+            "start_seconds": start_seconds,
+            "end_seconds": end_seconds
         }
     
     except Exception as e:

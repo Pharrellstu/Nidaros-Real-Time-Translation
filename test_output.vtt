@@ -1,0 +1,144 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:00.742
+dat kan omgaan met de meest
+prestatie-intensieve systeemeisen.
+
+00:00:00.371 --> 00:00:01.114
+Dit was Rust in 100 seconden.
+
+00:00:00.000 --> 00:00:00.415
+Druk op de soortgelijke knop en
+abonneer je als je meer korte video's
+
+00:00:00.199 --> 00:00:00.614
+zoals deze wilt zien,
+en laat een reactie als je een
+
+00:00:00.398 --> 00:00:00.813
+volledige-
+
+00:00:00.000 --> 00:00:00.840
+Tutorial.
+Bedankt voor het kijken en ik zie je
+
+00:00:00.420 --> 00:00:01.260
+in de volgende.
+
+00:00:00.000 --> 00:00:00.720
+Een memory-safe gecompileerde
+programmeertaal die eenvoud op hoog
+
+00:00:00.336 --> 00:00:01.056
+niveau levert met vooruitgang op laag
+niveau.
+
+00:00:00.000 --> 00:00:00.605
+Het is een populaire keuze voor het
+bouwen van systemen waar prestaties
+
+00:00:00.302 --> 00:00:00.907
+is absoluut cruciaal zoals
+
+00:00:00.000 --> 00:00:00.708
+motor,
+databases,
+
+00:00:00.354 --> 00:00:01.062
+of besturingssystemen,
+en is een uitstekende keuze bij het
+
+00:00:00.708 --> 00:00:01.417
+richten van WebAssembly.
+
+00:00:00.000 --> 00:00:00.553
+Het begon als een nevenproject van
+Great On Horror in 2007,
+
+00:00:00.276 --> 00:00:00.830
+die het vernoemd naar de rest f-
+
+00:00:00.000 --> 00:00:00.697
+Het werd gesponsord door Mozilla in
+2009 en is gerangschikt naar de meest
+
+00:00:00.325 --> 00:00:01.022
+geliefde programmeertaal
+
+00:00:00.000 --> 00:00:00.830
+jaar sinds 2016,
+met zijn fans bekend als Restations,
+
+00:00:00.415 --> 00:00:01.245
+traditioneel hoog niveau
+
+00:00:00.000 --> 00:00:00.625
+die is voorzien van een vuilnis
+verzamelaar om uw controle over
+
+00:00:00.312 --> 00:00:00.937
+geheugenbeheer nerf terwijl lager
+niveau
+
+00:00:00.000 --> 00:00:00.600
+die functies zoals gratis en toe te
+wijzen om jezelf in de voet te
+
+00:00:00.284 --> 00:00:00.884
+schieten. Russ neemt een andere.
+
+00:00:00.000 --> 00:00:00.711
+Het heeft geen afval verzamelaar,
+maar bereikt geheugenveiligheid met
+
+00:00:00.355 --> 00:00:01.067
+een concept bekend als eigendom
+
+00:00:00.000 --> 00:00:00.625
+en lenen.
+Standaard is elke variabele in Rust
+
+00:00:00.294 --> 00:00:00.919
+onveranderlijk. Dit maakt het
+mogelijk waarden te gebruiken in
+
+00:00:00.000 --> 00:00:00.830
+stack geheugen,
+die minimale prestaties overhead.
+
+00:00:00.383 --> 00:00:01.213
+Veranderbare waarden of objecten met
+een niet-
+
+00:00:00.000 --> 00:00:00.620
+grootte op compilatietijd worden
+opgeslagen in het hoopgeheugen.
+
+00:00:00.310 --> 00:00:00.930
+Elke waarde in een Rust programma is
+een
+
+00:00:00.000 --> 00:00:00.566
+in een enkele variabele bekend als de
+eigenaar. Wanneer die variabele uit
+
+00:00:00.268 --> 00:00:00.835
+het toepassingsgebied valt,
+wordt het geheugen toegewezen
+
+00:00:00.000 --> 00:00:00.555
+Het wordt automatisch laten vallen.
+In sommige gevallen echter,
+
+00:00:00.263 --> 00:00:00.818
+kunt u een verwijzing naar een ander
+deel van de
+
+00:00:00.000 --> 00:00:00.496
+Lenen stelt u in staat om toegang te
+krijgen tot een referentie in het
+
+00:00:00.236 --> 00:00:00.732
+geheugen zonder de eigenaar ervan te
+nemen.
+

@@ -47,6 +47,9 @@ RUN git clone --depth=1 https://github.com/xiph/rnnoise.git /tmp/rnnoise && \
     chmod +x /app/rnnoise_demo && \
     rm -rf /tmp/rnnoise
 
+# Create VTT output directory with proper permissions
+RUN mkdir -p /app/vtt_output && chmod 777 /app/vtt_output
+
 # Create non-root user (optional)
 RUN useradd -m appuser
 USER appuser

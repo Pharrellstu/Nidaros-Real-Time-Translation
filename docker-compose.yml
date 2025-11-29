@@ -35,6 +35,8 @@ services:
       - WHISPER_URL=http://whisper-service:5001/transcribe
       - TRANSLATOR_URL=http://translator-service:5000
       - STREAM_URL=rtsp://wowza-trial:1935/live/OBSstream
+      - STREAM_NAME=OBSstream
+      - VTT_OUTPUT_PATH=/app/vtt_output
       # The rest of your environment variables
       - ASPNETCORE_URLS=http://+:5032
       - FFMPEG_PATH=/usr/bin/ffmpeg

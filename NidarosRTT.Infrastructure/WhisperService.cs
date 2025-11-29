@@ -81,8 +81,27 @@ namespace NidarosRTT.Infrastructure
             if (string.IsNullOrEmpty(translated))
                 translated = original;
 
+            // Parse timing data
+            float? startSeconds = null;
+            float? endSeconds = null;
+            
+            if (root.TryGetProperty("start_seconds", out var startProp))
+            {
+                startSeconds = (float)startProp.GetDouble();
+            }
+            
+            if (root.TryGetProperty("end_seconds", out var endProp))
+            {
+                endSeconds = (float)endProp.GetDouble();
+            }
 
-            return new TranscriptionResult { OriginalText = original, TranslatedText = translated };
+            return new TranscriptionResult 
+            { 
+                OriginalText = original, 
+                TranslatedText = translated,
+                StartSeconds = startSeconds,
+                EndSeconds = endSeconds
+            };
         }
 
         public async Task<TranscriptionResult?> TranscribeWithStatusAsync(string audioFilePath, CancellationToken token)
@@ -150,6 +169,17 @@ namespace NidarosRTT.Infrastructure
             if (root.TryGetProperty("target_language", out var targetLangProp))
             {
                 result.TargetLanguage = targetLangProp.GetString();
+            }
+
+            // Parse timing data
+            if (root.TryGetProperty("start_seconds", out var startSecsProp))
+            {
+                result.StartSeconds = (float)startSecsProp.GetDouble();
+            }
+            
+            if (root.TryGetProperty("end_seconds", out var endSecsProp))
+            {
+                result.EndSeconds = (float)endSecsProp.GetDouble();
             }
 
             Console.WriteLine($"[WHISPER SERVICE] Original: '{result.OriginalText}', Translated: '{result.TranslatedText}', Status: {result.TranslationStatus}");
