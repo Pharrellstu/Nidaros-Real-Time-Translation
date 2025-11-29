@@ -80,6 +80,33 @@ public class Program
         // Basic API route
         app.MapGet("/", () => "Live Subtitle Translation Service is running.");
 
+        // VTT File serving endpoint
+        app.MapGet("/vtt/{streamName}.vtt", async (string streamName, HttpContext context) =>
+        {
+            try
+            {
+                var vttPath = Path.Combine(vttOutputPath, $"{streamName}.vtt");
+                
+                if (!File.Exists(vttPath))
+                {
+                    context.Response.StatusCode = 404;
+                    await context.Response.WriteAsync($"VTT file not found: {streamName}.vtt");
+                    return;
+                }
+
+                var content = await File.ReadAllTextAsync(vttPath);
+                context.Response.ContentType = "text/vtt; charset=utf-8";
+                context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+                await context.Response.WriteAsync(content);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[VTT SERVE ERROR] {ex.Message}");
+                context.Response.StatusCode = 500;
+                await context.Response.WriteAsync($"Error: {ex.Message}");
+            }
+        });
+
         // HLS Proxy endpoints to serve video through port 5032
         app.MapGet("/hls/{streamName}/playlist.m3u8", async (string streamName, HttpContext context, IHttpClientFactory httpClientFactory) =>
         {

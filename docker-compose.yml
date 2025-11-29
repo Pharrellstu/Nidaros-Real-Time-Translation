@@ -36,10 +36,12 @@ services:
       - TRANSLATOR_URL=http://translator-service:5000
       - STREAM_URL=rtsp://wowza-trial:1935/live/OBSstream
       - STREAM_NAME=OBSstream
-      - VTT_OUTPUT_PATH=/app/vtt_output
+      - VTT_OUTPUT_PATH=/shared_content/vtt
       # The rest of your environment variables
       - ASPNETCORE_URLS=http://+:5032
       - FFMPEG_PATH=/usr/bin/ffmpeg
+    volumes:
+      - shared_content:/shared_content
     depends_on:
       - whisper-service
       - translator-service
@@ -64,6 +66,8 @@ services:
       - "8087:8087"
       - "6970-6999:6970-6999/udp"
       - "10000:10000/udp"
+    volumes:
+      - shared_content:/usr/local/WowzaStreamingEngine/content
     restart: unless-stopped
 
   # Wowza Streaming Engine Manager
@@ -79,3 +83,7 @@ services:
       - wowza-trial
     restart: unless-stopped
 
+# Shared volume for VTT files between api-service and wowza-trial
+volumes:
+  shared_content:
+    driver: local
