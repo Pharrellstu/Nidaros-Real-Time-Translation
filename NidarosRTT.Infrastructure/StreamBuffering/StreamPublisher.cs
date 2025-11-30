@@ -1,8 +1,10 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using NidarosRTT.Infrastructure.Captions;
 
 namespace NidarosRTT.Infrastructure.StreamBuffering
 {
@@ -15,6 +17,11 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
         /// Start publishing the delayed stream
         /// </summary>
         Task StartAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Queue a caption to be injected into the video stream
+        /// </summary>
+        void QueueCaption(string text, uint timecode);
 
         /// <summary>
         /// Get statistics about stream publishing
@@ -31,6 +38,10 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
         private readonly string _outputUrl;
         private readonly string _ffmpegPath;
         private readonly IStreamBuffer _streamBuffer;
+        private readonly CaptionQueue _captionQueue;
+        private readonly Cea608Encoder _cea608Encoder;
+        private readonly H264SeiBuilder _seiBuilder;
+        private readonly FlvVideoTagModifier _videoTagModifier;
         private readonly object _statsLock = new object();
         
         private StreamPublisherStats _stats = new StreamPublisherStats();
@@ -39,17 +50,37 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
         private bool _headerWritten = false;
         private int _reconnectAttempts = 0;
         private const int MAX_RECONNECT_DELAY_MS = 30000;
+        
+        // Caption injection settings
+        private DateTime _lastCaptionInjection = DateTime.MinValue;
+        private const int MIN_CAPTION_INTERVAL_MS = 2000; // Inject captions at most every 2 seconds
 
-        public StreamPublisher(string outputUrl, string ffmpegPath, IStreamBuffer streamBuffer)
+        public StreamPublisher(string outputUrl, string ffmpegPath, IStreamBuffer streamBuffer, CaptionQueue? captionQueue = null)
         {
             _outputUrl = outputUrl;
             _ffmpegPath = ffmpegPath;
             _streamBuffer = streamBuffer;
+            _captionQueue = captionQueue ?? new CaptionQueue();
+            _cea608Encoder = new Cea608Encoder();
+            _seiBuilder = new H264SeiBuilder();
+            _videoTagModifier = new FlvVideoTagModifier();
 
             if (!File.Exists(_ffmpegPath))
             {
                 throw new FileNotFoundException($"FFmpeg executable not found at '{_ffmpegPath}'");
             }
+        }
+        
+        /// <summary>
+        /// Queue a caption to be injected into the video stream
+        /// </summary>
+        public void QueueCaption(string text, uint timecode)
+        {
+            _captionQueue.QueueCaption(text, timecode);
+            
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[STREAM PUBLISHER] Queued caption at {timecode}ms: '{text.Substring(0, Math.Min(text.Length, 50))}'");
+            Console.ResetColor();
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -262,6 +293,14 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
             if (_ffmpegStdin == null || !_headerWritten)
                 throw new InvalidOperationException("FFmpeg stdin not ready");
 
+            byte[] packetData = packet.Data;
+            
+            // Try to inject caption if this is a video packet
+            if (packet.Type == MediaPacketType.Video)
+            {
+                packetData = TryInjectCaption(packet.Data, (uint)packet.Timecode);
+            }
+
             // Construct FLV tag
             var tagType = packet.Type switch
             {
@@ -271,7 +310,7 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
                 _ => (byte)0x12
             };
 
-            var dataSize = packet.Data.Length;
+            var dataSize = packetData.Length;
             var timestamp = packet.Timecode;
 
             // Build tag header (11 bytes)
@@ -298,7 +337,7 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
             await _ffmpegStdin.WriteAsync(tagHeader, 0, 11, cancellationToken);
             
             // Write tag data
-            await _ffmpegStdin.WriteAsync(packet.Data, 0, packet.Data.Length, cancellationToken);
+            await _ffmpegStdin.WriteAsync(packetData, 0, packetData.Length, cancellationToken);
             
             // Write previous tag size (4 bytes, big-endian)
             var prevTagSize = 11 + dataSize;
@@ -310,6 +349,56 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
             
             await _ffmpegStdin.WriteAsync(prevTagSizeBytes, 0, 4, cancellationToken);
             await _ffmpegStdin.FlushAsync(cancellationToken);
+        }
+        
+        /// <summary>
+        /// Try to inject a caption into a video packet if one is available
+        /// </summary>
+        private byte[] TryInjectCaption(byte[] videoData, uint timecode)
+        {
+            try
+            {
+                // Check if this is a keyframe and if enough time has passed since last injection
+                if (!_videoTagModifier.IsKeyframe(videoData))
+                    return videoData;
+                
+                var timeSinceLastInjection = (DateTime.UtcNow - _lastCaptionInjection).TotalMilliseconds;
+                if (timeSinceLastInjection < MIN_CAPTION_INTERVAL_MS)
+                    return videoData;
+                
+                // Try to get a caption for this timecode
+                var captionText = _captionQueue.TryGetCaptionForTimecode(timecode, toleranceMs: 500);
+                if (string.IsNullOrEmpty(captionText))
+                    return videoData;
+                
+                // Encode caption to CEA-608
+                var cea608Data = _cea608Encoder.EncodeCaptionText(captionText);
+                
+                // Inject caption into video packet
+                var modifiedData = _videoTagModifier.InjectCaption(videoData, cea608Data, injectOnKeyframesOnly: true);
+                
+                _lastCaptionInjection = DateTime.UtcNow;
+                
+                lock (_statsLock)
+                {
+                    _stats.CaptionsInjected++;
+                }
+                
+                var sizeDiff = modifiedData?.Length - videoData.Length ?? 0;
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"[CAPTION INJECT] Timecode: {timecode}ms, Text: '{captionText.Substring(0, Math.Min(captionText.Length, 50))}', " +
+                                $"Original: {videoData.Length} bytes, Modified: {modifiedData?.Length ?? 0} bytes (+{sizeDiff})");
+                Console.ResetColor();
+                
+                return modifiedData ?? videoData;
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"[CAPTION INJECT] Error injecting caption: {ex.Message}");
+                Console.ResetColor();
+                return videoData; // Return original on error
+            }
         }
 
         private void CleanupFFmpeg()
@@ -347,6 +436,7 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
                 Console.WriteLine($"[STREAM PUBLISHER STATS] Total: {_stats.TotalPacketsPublished} packets, " +
                                 $"Video: {_stats.VideoPacketsPublished}, Audio: {_stats.AudioPacketsPublished}, " +
                                 $"Data: {_stats.DataPacketsPublished}, " +
+                                $"Captions: {_stats.CaptionsInjected}, " +
                                 $"Bytes: {_stats.TotalBytesPublished / 1024 / 1024:F2} MB");
                 Console.ResetColor();
             }
@@ -364,6 +454,7 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
                     AudioPacketsPublished = _stats.AudioPacketsPublished,
                     DataPacketsPublished = _stats.DataPacketsPublished,
                     TotalBytesPublished = _stats.TotalBytesPublished,
+                    CaptionsInjected = _stats.CaptionsInjected,
                     LastConnectedTime = _stats.LastConnectedTime,
                     LastPacketTime = _stats.LastPacketTime
                 };
@@ -382,6 +473,7 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
         public long AudioPacketsPublished { get; set; }
         public long DataPacketsPublished { get; set; }
         public long TotalBytesPublished { get; set; }
+        public long CaptionsInjected { get; set; }
         public DateTime? LastConnectedTime { get; set; }
         public DateTime? LastPacketTime { get; set; }
     }
