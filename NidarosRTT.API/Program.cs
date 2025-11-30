@@ -48,16 +48,23 @@ public class Program
                 var buffer = sp.GetRequiredService<IStreamBuffer>();
                 return new StreamPuller(streamUrl, buffer, ffmpegPath);
             });
+            
+            // Create shared caption queue for transcription → StreamPublisher communication
+            var captionQueue = new NidarosRTT.Infrastructure.Captions.CaptionQueue();
+            builder.Services.AddSingleton(captionQueue);
+            
             builder.Services.AddSingleton<IStreamPublisher>(sp =>
             {
                 var buffer = sp.GetRequiredService<IStreamBuffer>();
-                return new StreamPublisher(delayedStreamUrl, ffmpegPath, buffer);
+                var queue = sp.GetRequiredService<NidarosRTT.Infrastructure.Captions.CaptionQueue>();
+                return new StreamPublisher(delayedStreamUrl, ffmpegPath, buffer, queue);
             });
             
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"[STREAM BUFFERING] Enabled with {bufferDelayMs}ms delay");
             Console.WriteLine($"[STREAM BUFFERING] Source: {streamUrl}");
             Console.WriteLine($"[STREAM BUFFERING] Delayed: {delayedStreamUrl}");
+            Console.WriteLine($"[CEA-608 CAPTIONS] Enabled - captions will be embedded in delayed stream");
             Console.ResetColor();
         }
 
@@ -267,11 +274,12 @@ public class Program
         // --- Start Stream Buffering Tasks (if enabled) ---
         Task? streamPullerTask = null;
         Task? streamPublisherTask = null;
+        IStreamPublisher? streamPublisher = null;  // Shared reference for caption queueing
         
         if (enableStreamBuffering)
         {
             var streamPuller = app.Services.GetRequiredService<IStreamPuller>();
-            var streamPublisher = app.Services.GetRequiredService<IStreamPublisher>();
+            streamPublisher = app.Services.GetRequiredService<IStreamPublisher>();
             
             // Start pulling stream into buffer
             streamPullerTask = Task.Run(async () =>
@@ -288,12 +296,13 @@ public class Program
                 }
             }, cts.Token);
             
-            // Start publishing delayed stream
+            // Start publishing delayed stream (with caption injection)
+            var publisher = streamPublisher;  // Capture for Task.Run
             streamPublisherTask = Task.Run(async () =>
             {
                 try
                 {
-                    await streamPublisher.StartAsync(cts.Token);
+                    await publisher.StartAsync(cts.Token);
                 }
                 catch (Exception ex)
                 {
@@ -342,6 +351,7 @@ public class Program
         // Task 2: Multiple transcription workers
         var transcribeTasks = new List<Task>();
         int maxConcurrentTranscriptions = 6;
+        
         for (int i = 0; i < maxConcurrentTranscriptions; i++)
         {
             transcribeTasks.Add(Task.Run(async () =>
@@ -366,6 +376,37 @@ public class Program
                             Console.ForegroundColor = ConsoleColor.Green;
                             Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {englishText}");
                             Console.ResetColor();
+
+                            // ===== CEA-608 CAPTION QUEUEING =====
+                            if (streamPublisher != null)
+                            {
+                                try
+                                {
+                                    // Calculate stream offset from chunk's wall-clock timestamp
+                                    var streamOffset = streamTimingTracker.GetStreamTimeOffset(chunk);
+                                    
+                                    // Get timing from Whisper result (relative to chunk)
+                                    var whisperStart = transcriptionResult.GetStartTime();
+                                    
+                                    // Calculate absolute stream time for this caption
+                                    var absoluteStreamTime = streamOffset + whisperStart;
+                                    var timecodeMs = (uint)absoluteStreamTime.TotalMilliseconds;
+                                    
+                                    // Queue caption for injection into delayed stream
+                                    streamPublisher.QueueCaption(englishText, timecodeMs);
+                                    
+                                    Console.ForegroundColor = ConsoleColor.Cyan;
+                                    Console.WriteLine($"[CEA-608 QUEUE] Timecode: {timecodeMs}ms ({absoluteStreamTime:hh\\:mm\\:ss\\.fff}), Text: '{englishText.Substring(0, Math.Min(englishText.Length, 50))}'");
+                                    Console.ResetColor();
+                                }
+                                catch (Exception captionEx)
+                                {
+                                    Console.ForegroundColor = ConsoleColor.Yellow;
+                                    Console.WriteLine($"[CEA-608 ERROR] Failed to queue caption: {captionEx.Message}");
+                                    Console.ResetColor();
+                                }
+                            }
+                            // ===== END CEA-608 QUEUEING =====
 
                             // ===== VTT FILE GENERATION WITH STREAM TIMING =====
                             try
