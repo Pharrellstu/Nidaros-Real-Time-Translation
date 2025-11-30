@@ -54,6 +54,7 @@ services:
       - shared_content:/shared_content
     depends_on:
       - whisper-service
+      - wowza-trial
       # Removed translator-service dependency since it's disabled
     restart: unless-stopped
 
