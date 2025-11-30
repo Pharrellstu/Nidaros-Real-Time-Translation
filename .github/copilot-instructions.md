@@ -136,7 +136,6 @@ docker start nidaros-real-time-translation-translator-service-1
 - **NidarosRTT.Core**: Domain services (health monitoring, interfaces)
 - **NidarosRTT.Infrastructure**: External integrations (Whisper API, FFmpeg, audio queue, DTOs)
 - **NidarosRTT.API**: Web host (SignalR hub, HLS proxy, background workers)
-- **NidarosRTT.Tests**: xUnit tests (currently minimal)
 
 ### Python Services
 - `FasterWhisperService/app/run.py`: FastAPI endpoint at `/transcribe`, handles translation delegation
