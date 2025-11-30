@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Serilog;
+using Serilog.Events;
 
 public class Program
 {
@@ -20,7 +22,25 @@ public class Program
         var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "C:/Users/xxxam/Downloads/ffmpeg-8.0-essentials_build/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe";
 
         var builder = WebApplication.CreateBuilder(args);
+        
+        // --- Serilog Configuration ---
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+            .Enrich.FromLogContext()
+            .WriteTo.Async(a => a.File(
+                path: "logs/log-.txt",
+                rollingInterval: RollingInterval.Day,
+                restrictedToMinimumLevel: LogEventLevel.Information))
+            .WriteTo.Async(a => a.Seq(
+                serverUrl: builder.Configuration["Seq:ServerUrl"],
+                apiKey: builder.Configuration["Seq:ApiKey"]))
+            .CreateLogger();
 
+        builder.Host.UseSerilog();
+        
+        Log.Information("Serilog file logging is working!");
+        
         // --- Dependency Injection Setup ---
         builder.Services.AddSingleton<AudioProcessingQueue>();
         builder.Services.AddSingleton<IWowzaAudioListener>(new WowzaAudioListener(streamUrl, ffmpegPath));
@@ -53,30 +73,27 @@ public class Program
         {
             options.AddPolicy("AllowAll", policy =>
             {
-                policy.SetIsOriginAllowed(origin => true) // Allow any origin for development
+                policy.SetIsOriginAllowed(origin => true)
                       .AllowAnyHeader()
                       .AllowAnyMethod()
-                      .AllowCredentials(); // This is crucial for SignalR
+                      .AllowCredentials();
             });
         });
 
         var app = builder.Build();
 
         // --- Middleware Pipeline ---
-        // Serve the static web interface
         app.UseDefaultFiles();
         app.UseStaticFiles();
 
-        // 2. Apply the CORS policy. The order is important.
         app.UseCors("AllowAll");
 
-        // Map the SignalR Hub
-        app.MapHub<SubtitlesHub>("/subtitlesHub"); // Using camelCase is a common convention for URLs
+        app.MapHub<SubtitlesHub>("/subtitlesHub");
 
         // Basic API route
         app.MapGet("/", () => "Live Subtitle Translation Service is running.");
 
-        // HLS Proxy endpoints to serve video through port 5032
+        // HLS Proxy endpoints
         app.MapGet("/hls/{streamName}/playlist.m3u8", async (string streamName, HttpContext context, IHttpClientFactory httpClientFactory) =>
         {
             try
@@ -88,7 +105,6 @@ public class Program
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync();
-                    // Rewrite URLs to point to our proxy
                     content = content.Replace($"chunklist", $"/hls/{streamName}/chunklist");
 
                     context.Response.ContentType = "application/vnd.apple.mpegurl";
@@ -103,7 +119,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HLS PROXY ERROR] playlist.m3u8: {ex.Message}");
+                Log.Error(ex, "[HLS PROXY ERROR] playlist.m3u8: {Message}", ex.Message);
                 context.Response.StatusCode = 500;
                 await context.Response.WriteAsync($"Error: {ex.Message}");
             }
@@ -119,10 +135,8 @@ public class Program
 
                 if (response.IsSuccessStatusCode)
                 {
-                    // Check if it's a manifest or segment
                     if (fileName.EndsWith(".m3u8"))
                     {
-                        // It's a chunklist - rewrite segment URLs
                         var content = await response.Content.ReadAsStringAsync();
                         content = content.Replace($"media_", $"/hls/{streamName}/media_");
 
@@ -132,7 +146,6 @@ public class Program
                     }
                     else
                     {
-                        // It's a media segment (.ts file)
                         var content = await response.Content.ReadAsByteArrayAsync();
                         context.Response.ContentType = "video/MP2T";
                         context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
@@ -146,7 +159,7 @@ public class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[HLS PROXY ERROR] {fileName}: {ex.Message}");
+                Log.Error(ex, "[HLS PROXY ERROR] {Message}", ex.Message);
                 context.Response.StatusCode = 500;
             }
         });
@@ -166,7 +179,7 @@ public class Program
         var hubContext = app.Services.GetRequiredService<IHubContext<SubtitlesHub>>();
         var healthMonitor = app.Services.GetRequiredService<ITranslationHealthMonitor>();
 
-        // Subscribe to health status changes and broadcast to clients
+        // Health status logging
         healthMonitor.StatusChanged += async (sender, e) =>
         {
             var statusMessage = e.Status == TranslationServiceStatus.Available ? "available" : "unavailable";
@@ -178,54 +191,52 @@ public class Program
                     message = e.Message,
                     timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
                 });
-                Console.ForegroundColor = e.Status == TranslationServiceStatus.Available ? ConsoleColor.Green : ConsoleColor.Yellow;
-                Console.WriteLine($"[HEALTH STATUS] Translation service is now: {statusMessage}");
-                Console.ResetColor();
+                
+                Log.Information("[HEALTH STATUS] Translation service is now: {Status}", statusMessage);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[STATUS BROADCAST ERROR] {ex.Message}");
+                Log.Error(ex, "[STATUS BROADCAST ERROR] {Message}", ex.Message);
             }
         };
 
-        Console.WriteLine("Starting Live STT Demo...");
-        Console.WriteLine($"Listening to stream: {streamUrl}");
-        Console.WriteLine("Press Ctrl+C to exit.");
+        Log.Information("Starting Live STT Demo...");
+        Log.Information("Listening to stream: {StreamUrl}", streamUrl);
+        Log.Information("Press Ctrl+C to exit.");
 
-        // Task 1: Capture audio from Wowza stream
+        // Task 1: Capture audio task
         var captureTask = Task.Run(async () =>
         {
             while (!cts.Token.IsCancellationRequested)
             {
                 try
                 {
-                    Console.WriteLine("[CAPTURE] Attempting to capture audio chunk...");
+                    Log.Information("[CAPTURE] Attempting to capture audio chunk...");
                     var audioFile = await audioListener.CaptureAudioChunkAsync(cts.Token);
+
                     if (audioFile != null)
                     {
                         processingQueue.Enqueue(audioFile);
-                        Console.WriteLine($"[CAPTURE] ✓ Queued: {Path.GetFileName(audioFile.FilePath)}");
+                        Log.Information("[CAPTURE] ✓ Queued: {File}", Path.GetFileName(audioFile.FilePath));
                     }
                     else
                     {
-                        Console.WriteLine("[CAPTURE] ✗ No audio file captured (stream may be down). Retrying in 5s...");
+                        Log.Warning("[CAPTURE] ✗ No audio captured. Retrying in 5s...");
                         await Task.Delay(5000, cts.Token);
                     }
                 }
-                catch (OperationCanceledException) { }
                 catch (Exception ex)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"[CAPTURE ERROR] {ex.Message}");
-                    Console.ResetColor();
+                    Log.Error(ex, "[CAPTURE ERROR] {Message}", ex.Message);
                     await Task.Delay(5000, cts.Token);
                 }
             }
         }, cts.Token);
 
-        // Task 2: Multiple transcription workers
+        // Task 2: Transcription workers
         var transcribeTasks = new List<Task>();
         int maxConcurrentTranscriptions = 6;
+
         for (int i = 0; i < maxConcurrentTranscriptions; i++)
         {
             transcribeTasks.Add(Task.Run(async () =>
@@ -235,23 +246,20 @@ public class Program
                     try
                     {
                         var chunk = await processingQueue.DequeueAsync(cts.Token);
-                        Console.WriteLine($"[PROCESS-{Task.CurrentId}] Transcribing: {Path.GetFileName(chunk.FilePath)}...");
+                        Log.Information("[PROCESS-{Id}] Transcribing: {File}", Task.CurrentId, Path.GetFileName(chunk.FilePath));
 
-                        // Get the TranscriptionResult object
                         var transcriptionResult = await whisperService.TranscribeAsync(chunk.FilePath, cts.Token);
 
-                        // Check the result object
-                        if (transcriptionResult != null && (!string.IsNullOrWhiteSpace(transcriptionResult.OriginalText) || !string.IsNullOrWhiteSpace(transcriptionResult.TranslatedText)))
+                        if (transcriptionResult != null &&
+                            (!string.IsNullOrWhiteSpace(transcriptionResult.OriginalText) ||
+                             !string.IsNullOrWhiteSpace(transcriptionResult.TranslatedText)))
                         {
-                            // Ensure we have fallbacks
                             var originalText = (transcriptionResult.OriginalText ?? transcriptionResult.TranslatedText ?? "").Trim();
                             var translatedText = (transcriptionResult.TranslatedText ?? transcriptionResult.OriginalText ?? "").Trim();
 
-                            Console.ForegroundColor = ConsoleColor.Green;
-                            Console.WriteLine($"[TRANSCRIPTION-{Task.CurrentId}] {DateTime.Now:T} → {translatedText}");
-                            Console.ResetColor();
+                            Log.Information("[TRANSCRIPTION-{Id}] {Time} → {Text}",
+                                Task.CurrentId, DateTime.Now.ToString("T"), translatedText);
 
-                            // Create DTO with translation status
                             var dto = new SingleCaptionDto(
                                 text: translatedText,
                                 originalText: originalText,
@@ -263,37 +271,30 @@ public class Program
                                 wallClockEndTS: chunk.wallClockEndTS
                             );
 
-                            // Send to all connected web clients
                             try
                             {
                                 await hubContext.Clients.All.SendAsync("ReceiveTranscription", dto);
-                                Console.WriteLine($"[SIGNALR] ✓ Sent to clients: {dto.text}");
+                                Log.Information("[SIGNALR] ✓ Sent to clients: {Text}", dto.text);
                             }
                             catch (Exception signalrEx)
                             {
-                                Console.ForegroundColor = ConsoleColor.Yellow;
-                                Console.WriteLine($"[SIGNALR ERROR] Failed to send: {signalrEx.Message}");
-                                Console.ResetColor();
+                                Log.Warning(signalrEx, "[SIGNALR ERROR] Failed to send message");
                             }
                         }
                         else
                         {
-                            Console.WriteLine($"[PROCESS-{Task.CurrentId}] No text transcribed (empty result)");
+                            Log.Warning("[PROCESS-{Id}] No text transcribed", Task.CurrentId);
                         }
 
                         if (File.Exists(chunk.FilePath))
                         {
                             File.Delete(chunk.FilePath);
-                            Console.WriteLine($"[CLEANUP] Deleted: {Path.GetFileName(chunk.FilePath)}");
+                            Log.Information("[CLEANUP] Deleted: {File}", Path.GetFileName(chunk.FilePath));
                         }
                     }
-                    catch (OperationCanceledException) { }
                     catch (Exception ex)
                     {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine($"[PROCESS ERROR-{Task.CurrentId}] {ex.Message}");
-                        Console.WriteLine($"[PROCESS ERROR-{Task.CurrentId}] {ex.StackTrace}");
-                        Console.ResetColor();
+                        Log.Error(ex, "[PROCESS ERROR-{Id}] {Message}", Task.CurrentId, ex.Message);
                     }
                 }
             }, cts.Token));
@@ -301,6 +302,17 @@ public class Program
 
         var allTasks = new List<Task> { captureTask };
         allTasks.AddRange(transcribeTasks);
+
+        // Logging health endpoint
+        app.MapGet("/logging-health", () =>
+        {
+            Log.Information("Logging health check OK");
+            return Results.Ok(new
+            {
+                status = "ok",
+                message = "Logging system is working"
+            });
+        });
 
         _ = app.RunAsync(cts.Token);
         await Task.WhenAll(allTasks);
