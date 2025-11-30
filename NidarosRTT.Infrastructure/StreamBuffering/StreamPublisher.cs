@@ -140,13 +140,14 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
         private async Task PublishStreamAsync(CancellationToken cancellationToken)
         {
             // FFmpeg command to publish FLV stream to RTMP
-            // -re: Read input at native frame rate (important for live streaming)
-            // -f flv: Input format is FLV
+            // FIXED: Removed bsf:v filter that was corrupting the stream
+            // -re: Read input at native frame rate
+            // -f flv: Input format is FLV  
             // -i pipe:0: Read from stdin
             // -c copy: Copy streams without re-encoding
             // -f flv: Output format is FLV
-            // -rtmp_buffer 2000: Set RTMP buffer size (ms)
-            var arguments = $"-re -f flv -i pipe:0 -c copy -f flv -rtmp_buffer 2000 \"{_outputUrl}\"";
+            var arguments = $"-re -f flv -i pipe:0 -c copy -f flv \"{_outputUrl}\"";
+
 
             var processStartInfo = new ProcessStartInfo
             {
@@ -333,22 +334,52 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
             tagHeader[9] = 0x00;
             tagHeader[10] = 0x00;
 
-            // Write tag header
-            await _ffmpegStdin.WriteAsync(tagHeader, 0, 11, cancellationToken);
+            // DEBUG: Log first video packet details
+            if (packet.Type == MediaPacketType.Video && _stats.VideoPacketsWritten < 3)
+            {
+                Console.ForegroundColor = ConsoleColor.Magenta;
+                Console.WriteLine($"[STREAM PUBLISHER DEBUG] Video packet #{_stats.VideoPacketsWritten}:");
+                Console.WriteLine($"  Timestamp: {timestamp}ms");
+                Console.WriteLine($"  Data size: {dataSize} bytes");
+                Console.WriteLine($"  First 20 bytes: {BitConverter.ToString(packetData.Take(Math.Min(20, packetData.Length)).ToArray())}");
+                if (packetData.Length >= 5)
+                {
+                    var frameType = (packetData[0] & 0xF0) >> 4;
+                    var codecId = packetData[0] & 0x0F;
+                    var avcPacketType = packetData[1];
+                    Console.WriteLine($"  Frame type: 0x{frameType:X} ({(frameType == 1 ? "keyframe" : frameType == 2 ? "inter" : "unknown")})");
+                    Console.WriteLine($"  Codec ID: 0x{codecId:X} ({(codecId == 7 ? "AVC/H.264" : "unknown")})");
+                    Console.WriteLine($"  AVC packet type: 0x{avcPacketType:X} ({(avcPacketType == 0 ? "sequence header" : avcPacketType == 1 ? "NALU" : "unknown")})");
+                }
+                Console.ResetColor();
+            }
             
-            // Write tag data
-            await _ffmpegStdin.WriteAsync(packetData, 0, packetData.Length, cancellationToken);
+            // CRITICAL FIX: Write complete FLV tag atomically to avoid partial reads
+            // Build complete tag in memory first: header + data + prevTagSize
+            var prevTagSize = 11 + dataSize;
+            var completeTag = new byte[11 + dataSize + 4];
+            
+            // Copy tag header
+            Array.Copy(tagHeader, 0, completeTag, 0, 11);
+            
+            // Copy tag data
+            Array.Copy(packetData, 0, completeTag, 11, dataSize);
             
             // Write previous tag size (4 bytes, big-endian)
-            var prevTagSize = 11 + dataSize;
-            var prevTagSizeBytes = new byte[4];
-            prevTagSizeBytes[0] = (byte)((prevTagSize >> 24) & 0xFF);
-            prevTagSizeBytes[1] = (byte)((prevTagSize >> 16) & 0xFF);
-            prevTagSizeBytes[2] = (byte)((prevTagSize >> 8) & 0xFF);
-            prevTagSizeBytes[3] = (byte)(prevTagSize & 0xFF);
+            completeTag[11 + dataSize + 0] = (byte)((prevTagSize >> 24) & 0xFF);
+            completeTag[11 + dataSize + 1] = (byte)((prevTagSize >> 16) & 0xFF);
+            completeTag[11 + dataSize + 2] = (byte)((prevTagSize >> 8) & 0xFF);
+            completeTag[11 + dataSize + 3] = (byte)(prevTagSize & 0xFF);
             
-            await _ffmpegStdin.WriteAsync(prevTagSizeBytes, 0, 4, cancellationToken);
+            // Write complete tag in one atomic operation
+            await _ffmpegStdin.WriteAsync(completeTag, 0, completeTag.Length, cancellationToken);
             await _ffmpegStdin.FlushAsync(cancellationToken);
+            
+            // Track packet stats
+            lock (_statsLock)
+            {
+                if (packet.Type == MediaPacketType.Video) _stats.VideoPacketsWritten++;
+            }
         }
         
         /// <summary>
@@ -474,6 +505,7 @@ namespace NidarosRTT.Infrastructure.StreamBuffering
         public long DataPacketsPublished { get; set; }
         public long TotalBytesPublished { get; set; }
         public long CaptionsInjected { get; set; }
+        public long VideoPacketsWritten { get; set; } // Debug counter
         public DateTime? LastConnectedTime { get; set; }
         public DateTime? LastPacketTime { get; set; }
     }

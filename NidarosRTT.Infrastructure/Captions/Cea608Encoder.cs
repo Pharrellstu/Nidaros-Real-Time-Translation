@@ -57,12 +57,14 @@ namespace NidarosRTT.Infrastructure.Captions
         
         /// <summary>
         /// Create a 3-byte cc_data packet
+        /// CEA-708 structure: [reserved(2) | cc_valid(1) | cc_type(2) | reserved(3)]
+        /// cc_type: 00=CEA-608 Field1, 01=CEA-608 Field2, 10=DTVCC Data, 11=DTVCC Start
         /// </summary>
         private byte[] CreateDataPacket(byte data1, byte data2)
         {
             return new byte[]
             {
-                0xFC,  // cc_valid=1, cc_type=0 (NTSC line 21 field 1)
+                0xF8,  // 0b11111000: reserved=11, cc_valid=1, cc_type=00 (CEA-608 Field 1)
                 data1,
                 data2
             };
@@ -73,7 +75,7 @@ namespace NidarosRTT.Infrastructure.Captions
         /// </summary>
         private byte[] CreateControlCode(byte code1, byte code2)
         {
-            return new byte[] { 0xFC, code1, code2 };
+            return new byte[] { 0xF8, code1, code2 };  // CEA-608 Field 1
         }
         
         /// <summary>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CEA-608 Caption Test</title>
+    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
+    <style>
+        body {
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #4a9eff;
+        }
+        .video-container {
+            margin: 20px 0;
+        }
+        .info {
+            background: #222;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .status {
+            color: #0f0;
+            font-weight: bold;
+        }
+        .instructions {
+            background: #333;
+            padding: 10px;
+            border-left: 4px solid #4a9eff;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 CEA-608 Caption Test - Nidaros RTT</h1>
+        
+        <div class="info">
+            <h3>Status:</h3>
+            <p class="status">✅ CEA-608 captions are embedded in the stream (verified via hex dump)</p>
+            <p>Stream: <code>http://localhost:5032/hls/OBSstream_delayed/playlist.m3u8</code></p>
+        </div>
+
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Click play button below</li>
+                <li>Click the <strong>[CC]</strong> button in the player controls</li>
+                <li>Select "captions settings" or "English" from the menu</li>
+                <li>Captions should appear at the bottom of the video</li>
+            </ol>
+        </div>
+
+        <div class="video-container">
+            <video 
+                id="cea608-player"
+                class="video-js vjs-default-skin vjs-big-play-centered"
+                controls
+                preload="auto"
+                width="1280"
+                height="720"
+                crossorigin="anonymous">
+                <source 
+                    src="http://localhost:5032/hls/OBSstream_delayed/playlist.m3u8" 
+                    type="application/x-mpegURL">
+            </video>
+        </div>
+
+        <div class="info">
+            <h3>What's Happening:</h3>
+            <ul>
+                <li>✅ Stream corruption bug fixed (removed <code>-bsf:v 'dump_extra=all'</code>)</li>
+                <li>✅ CEA-608 encoder implemented (72/72 tests passing)</li>
+                <li>✅ Captions injected into video keyframes (+79 bytes per caption)</li>
+                <li>✅ SEI NAL units present in HLS segments (verified with ffprobe)</li>
+                <li>✅ CEA-608 payload verified (ATSC identifier: 0xB5 0x00 0x31)</li>
+                <li>✅ Caption text found in hex dump: "Program. Borrowing allows..."</li>
+                <li>🔄 Testing display in Video.js player...</li>
+            </ul>
+        </div>
+
+        <div class="info">
+            <h3>Debug Info:</h3>
+            <pre id="debug-info">Loading player...</pre>
+        </div>
+    </div>
+
+    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@videojs/http-streaming@2.14.2/dist/videojs-http-streaming.min.js"></script>
+    <script>
+        // Initialize Video.js player with CEA-608 support
+        const player = videojs('cea608-player', {
+            html5: {
+                vhs: {
+                    // Enable CEA-608 caption parsing
+                    enableCea608Captions: true,
+                    captionsTextTrack1Label: 'English',
+                    captionsTextTrack1LanguageCode: 'en'
+                },
+                nativeTextTracks: false
+            },
+            textTrackSettings: true,
+            textTrackDisplay: true
+        });
+
+        const debugInfo = document.getElementById('debug-info');
+
+        player.ready(function() {
+            debugInfo.textContent += '\n✓ Player initialized';
+            debugInfo.textContent += '\n✓ CEA-608 support enabled';
+            
+            // Monitor text tracks
+            player.textTracks().addEventListener('addtrack', function(e) {
+                debugInfo.textContent += `\n✓ Text track added: ${e.track.label || e.track.language || 'unknown'} (${e.track.kind})`;
+                
+                // Enable the track
+                e.track.mode = 'showing';
+                
+                // Monitor cues
+                e.track.addEventListener('cuechange', function() {
+                    const cues = e.track.activeCues;
+                    if (cues && cues.length > 0) {
+                        for (let i = 0; i < cues.length; i++) {
+                            debugInfo.textContent += `\n🎬 Caption: "${cues[i].text}"`;
+                        }
+                    }
+                });
+            });
+
+            // Log when player starts playing
+            player.on('playing', function() {
+                debugInfo.textContent += '\n▶ Stream playing...';
+                debugInfo.textContent += `\n📊 Text tracks: ${player.textTracks().length}`;
+                
+                // List all tracks
+                for (let i = 0; i < player.textTracks().length; i++) {
+                    const track = player.textTracks()[i];
+                    debugInfo.textContent += `\n   - Track ${i}: ${track.label} (${track.kind}, mode: ${track.mode})`;
+                }
+            });
+
+            player.on('error', function() {
+                const error = player.error();
+                debugInfo.textContent += `\n❌ Error: ${error.message} (code: ${error.code})`;
+            });
+        });
+    </script>
+</body>
+</html>

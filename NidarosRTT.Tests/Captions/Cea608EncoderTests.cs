@@ -32,10 +32,10 @@ namespace NidarosRTT.Tests.Captions
             // Total: 12 + 9 = 21 bytes minimum
             Assert.True(result.Length >= 21);
             
-            // Verify all packets start with 0xFC (cc_valid=1, cc_type=0)
+            // Verify all packets start with 0xF8 (cc_valid=1, cc_type=00 for CEA-608 Field 1)
             for (int i = 0; i < result.Length; i += 3)
             {
-                Assert.Equal(0xFC, result[i]);
+                Assert.Equal(0xF8, result[i]);
             }
         }
 
@@ -152,7 +152,7 @@ namespace NidarosRTT.Tests.Captions
             // Assert
             // PAC codes should be different for different lines
             // PAC is the second control code (bytes 3-5)
-            // Byte 3 is 0xFC (packet marker), byte 4 is PAC code1, byte 5 is PAC code2
+            // Byte 3 is 0xF8 (packet marker for CEA-608 Field 1), byte 4 is PAC code1, byte 5 is PAC code2
             
             // Verify structure: lines 1-2 use 0x11 base, lines 3-4 use 0x12 base
             Assert.Equal((byte)0x11, line1[4]);
@@ -222,7 +222,7 @@ namespace NidarosRTT.Tests.Captions
                 // Verify packet structure
                 for (int i = 0; i < result.Length; i += 3)
                 {
-                    Assert.Equal(0xFC, result[i]); // Valid cc_valid flag
+                    Assert.Equal(0xF8, result[i]); // CEA-608 Field 1 marker
                 }
             }
         }
