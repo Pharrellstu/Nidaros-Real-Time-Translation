@@ -43,6 +43,10 @@ services:
       - STREAM_URL=rtsp://wowza-trial:1935/live/OBSstream
       - STREAM_NAME=OBSstream
       - VTT_OUTPUT_PATH=/shared_content/vtt
+      # Stream buffering configuration (Java-style architecture)
+      - ENABLE_STREAM_BUFFERING=true
+      - DELAYED_STREAM_URL=rtmp://wowza-trial:1935/live/OBSstream_delayed
+      - BUFFER_DELAY_MS=30000
       # The rest of your environment variables
       - ASPNETCORE_URLS=http://+:5032
       - FFMPEG_PATH=/usr/bin/ffmpeg

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using NidarosRTT.Infrastructure;
+using NidarosRTT.Infrastructure.StreamBuffering;
 using NidarosRTT.API.Hubs;
 using NidarosRTT.Core.Services;
 using System;
@@ -20,6 +21,12 @@ public class Program
         var ffmpegPath = Environment.GetEnvironmentVariable("FFMPEG_PATH") ?? "C:/Users/xxxam/Downloads/ffmpeg-8.0-essentials_build/ffmpeg-8.0-essentials_build/bin/ffmpeg.exe";
         var vttOutputPath = Environment.GetEnvironmentVariable("VTT_OUTPUT_PATH") ?? "./vtt_output";
         var streamName = Environment.GetEnvironmentVariable("STREAM_NAME") ?? "OBSstream";
+        
+        // Stream buffering configuration
+        var delayedStreamUrl = Environment.GetEnvironmentVariable("DELAYED_STREAM_URL")
+                              ?? "rtmp://wowza-trial:1935/live/OBSstream_delayed";
+        var bufferDelayMs = int.Parse(Environment.GetEnvironmentVariable("BUFFER_DELAY_MS") ?? "30000");
+        var enableStreamBuffering = bool.Parse(Environment.GetEnvironmentVariable("ENABLE_STREAM_BUFFERING") ?? "true");
 
         var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +38,28 @@ public class Program
         builder.Services.AddSingleton<IVttWriter>(new VttWriter(vttOutputPath));
         builder.Services.AddSingleton<IStreamTimingTracker, StreamTimingTracker>();
         builder.Services.AddSignalR();
+
+        // Stream Buffering Services (for delayed stream)
+        if (enableStreamBuffering)
+        {
+            builder.Services.AddSingleton<IStreamBuffer>(sp => new StreamBuffer(bufferDelayMs));
+            builder.Services.AddSingleton<IStreamPuller>(sp => 
+            {
+                var buffer = sp.GetRequiredService<IStreamBuffer>();
+                return new StreamPuller(streamUrl, buffer, ffmpegPath);
+            });
+            builder.Services.AddSingleton<IStreamPublisher>(sp =>
+            {
+                var buffer = sp.GetRequiredService<IStreamBuffer>();
+                return new StreamPublisher(delayedStreamUrl, ffmpegPath, buffer);
+            });
+            
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine($"[STREAM BUFFERING] Enabled with {bufferDelayMs}ms delay");
+            Console.WriteLine($"[STREAM BUFFERING] Source: {streamUrl}");
+            Console.WriteLine($"[STREAM BUFFERING] Delayed: {delayedStreamUrl}");
+            Console.ResetColor();
+        }
 
         // Add HttpClient for HLS proxy and health monitoring
         builder.Services.AddHttpClient();
@@ -235,6 +264,50 @@ public class Program
         Console.WriteLine($"Listening to stream: {streamUrl}");
         Console.WriteLine("Press Ctrl+C to exit.");
 
+        // --- Start Stream Buffering Tasks (if enabled) ---
+        Task? streamPullerTask = null;
+        Task? streamPublisherTask = null;
+        
+        if (enableStreamBuffering)
+        {
+            var streamPuller = app.Services.GetRequiredService<IStreamPuller>();
+            var streamPublisher = app.Services.GetRequiredService<IStreamPublisher>();
+            
+            // Start pulling stream into buffer
+            streamPullerTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await streamPuller.StartAsync(cts.Token);
+                }
+                catch (Exception ex)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"[STREAM PULLER TASK] Fatal error: {ex.Message}");
+                    Console.ResetColor();
+                }
+            }, cts.Token);
+            
+            // Start publishing delayed stream
+            streamPublisherTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await streamPublisher.StartAsync(cts.Token);
+                }
+                catch (Exception ex)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"[STREAM PUBLISHER TASK] Fatal error: {ex.Message}");
+                    Console.ResetColor();
+                }
+            }, cts.Token);
+            
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("[STREAM BUFFERING] Puller and Publisher tasks started");
+            Console.ResetColor();
+        }
+
         // Task 1: Capture audio from Wowza stream
         var captureTask = Task.Run(async () =>
         {
@@ -380,6 +453,12 @@ public class Program
 
         var allTasks = new List<Task> { captureTask };
         allTasks.AddRange(transcribeTasks);
+        
+        // Add stream buffering tasks if enabled
+        if (streamPullerTask != null)
+            allTasks.Add(streamPullerTask);
+        if (streamPublisherTask != null)
+            allTasks.Add(streamPublisherTask);
 
         _ = app.RunAsync(cts.Token);
         await Task.WhenAll(allTasks);
