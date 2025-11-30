@@ -1,0 +1,2 @@
+2025-11-30 19:58:11.624 +01:00 [INF] Serilog file logging is working!
+2025-11-30 20:06:37.159 +01:00 [INF] Serilog file logging is working!
