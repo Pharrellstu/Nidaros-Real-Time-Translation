@@ -85,6 +85,91 @@ Wait for all services to start. You may see some FFmpeg errors from `api-service
 4. **User Notification:** A persistent orange warning banner appears at the top of the web page when translation is unavailable.
 5. **Automatic Recovery:** When the translation service comes back online, the system automatically resumes translations and removes the warning.
 
+### Structured Logging with Serilog 
+The project includes a full structured logging system using Serilog, replacing all Console.WriteLine statements. 
+
+Serilog provides multi-destination logging: 
+   - Daily rolling log files
+   - Real-time structured event logs in Seq
+   - Typed logging levels (Information, Warring, Error)
+   - Structured properties for debugging workers, chunks, errors
+
+## Log File Location 
+All logs are stored here: 
+```bash
+NidarosRTT.API/logs/log-YYYY-MM-DD.txt
+```
+The logs rotate daily. 
+
+## Optional: Seq Dashboard 
+If you want a live logging dashboard: 
+```bash
+docker run -d --name seq -e ACCEPT_EULA=Y -p 5341:80 datalust/seq
+```
+
+Open Seq: 
+```bash
+https://localhoast:5341
+```
+
+You can filter by: 
+   - File
+   - WorkID
+   - TranslationStatus
+   - ChunkName
+   - Error
+   - SourceLanguage, TargetLanguage
+
+## Health Check Endpoint 
+To verify logging without touching code: 
+```bash
+GET /logging-health
+```
+
+Returns: 
+```bash
+{
+  "status": "ok",
+  "message": "Logging system is working"
+}
+```
+
+## How Developers Should Use Logging
+Instead of: 
+```bash
+Console.WriteLine("Processing chunk");
+```
+
+use: 
+```bash
+Log.Information("Processing chunk {File}", chunk.FilePath);
+```
+
+Error: 
+```bash
+catch (Exception ex)
+{
+    Log.Error(ex, "Failed to transcribe chunk {File}", chunk.FilePath);
+}
+```
+
+Warning: 
+```bash
+Log.Warning("No audio received from stream");
+```
+This ensures logs are structured and searchable in Seq.
+
+### Running Log Files 
+```bash
+cd NidarosRTT.API
+dotnet run
+```
+
+Serilog automatically creates: 
+```bash
+NidarosRTT.API/logs/log-YYYY-MM-DD.txt
+```
+
 ### Testing the Failover
 
 To test the failover mechanism:
