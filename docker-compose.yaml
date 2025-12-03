@@ -88,3 +88,17 @@ services:
             - WSE_HOST=http://wse.docker:8087
         ports:
             - 8088:8080
+
+
+    frontend:
+      hostname: webplayer.docker
+      image: nginx:alpine  # Use a lightweight Nginx image
+      container_name: webplayer
+      ports:
+        # Maps host port 8000 to Nginx's port 80 (inside the container)
+        - 8000:80
+      volumes:
+        # Maps your local 'frontend' folder to Nginx's default web root
+        # This ensures your index.html is accessible inside the container
+            - ./WebPlayer:/usr/share/nginx/html:ro
+      restart: unless-stopped

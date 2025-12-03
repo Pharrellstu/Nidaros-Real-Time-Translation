@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Stream with Embedded Subtitles (JW Player)</title>
+
+    <script src="https://cdn.jwplayer.com/libraries/KVS6Czgx.js"></script>
+
+    <style>
+        /* CSS remains the same as provided */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .video-container {
+            width: 90%;
+            max-width: 960px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 16 / 9;
+        }
+
+        #subtitle-display {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 960px;
+            min-height: 50px;
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: 500;
+            color: #ffffff;
+            border: 1px solid #333;
+        }
+
+        .status-dot {
+            height: 12px;
+            width: 12px;
+            background-color: #bbb;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .connected {
+            background-color: #28a745;
+        }
+
+        .disconnected {
+            background-color: #dc3545;
+        }
+
+        #connection-status {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        .controls-container {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .subtitle-toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-label {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #555;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.toggle-slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked+.toggle-slider:before {
+            transform: translateX(26px);
+        }
+
+        .translation-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #ff9800;
+            color: #000;
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.95em;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            z-index: 9999;
+            display: none;
+        }
+
+        .translation-warning.show {
+            display: block;
+        }
+
+        .warning-icon {
+            margin-right: 8px;
+            font-size: 1.2em;
+        }
+
+        .size-control-container {
+            position: relative;
+            display: inline-block;
+            margin-left: auto;
+        }
+
+        .size-control-btn {
+            background-color: #333;
+            color: #e0e0e0;
+            border: 1px solid #555;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.2s ease;
+        }
+
+        .size-control-btn:hover {
+            background-color: #444;
+        }
+
+        .size-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            margin-bottom: 8px;
+            background-color: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 8px 0;
+            min-width: 150px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 1000;
+        }
+
+        .size-dropdown.show {
+            display: block;
+        }
+
+        .size-option {
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #e0e0e0;
+        }
+
+        .size-option:hover {
+            background-color: #3a3a3a;
+        }
+
+        .size-option.active {
+            background-color: #4CAF50;
+            color: #fff;
+        }
+
+        .size-option .checkmark {
+            display: none;
+            margin-left: 10px;
+        }
+
+        .size-option.active .checkmark {
+            display: inline;
+        }
+
+        .language-selector-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #language-select {
+            background-color: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 5px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="translation-warning" class="translation-warning">
+    <span class="warning-icon">⚠️</span>
+    <span id="warning-message">Captions are embedded in the stream.</span>
+</div>
+
+<h1>Live Subtitle Demo (Native Stream Captions)</h1>
+
+<div class="video-container">
+    <div id="jw-live-player"></div>
+</div>
+
+<div class="controls-container">
+    <div class="subtitle-toggle-container">
+        <span class="toggle-label">Captions</span>
+        <label class="toggle-switch">
+            <input type="checkbox" id="subtitle-toggle" checked>
+            <span class="toggle-slider"></span>
+        </label>
+
+        <div class="size-control-container">
+            <button class="size-control-btn" id="size-control-btn" title="Change subtitle size">
+                <span>📏</span>
+                <span id="current-size-label">Normal</span>
+            </button>
+            <div class="size-dropdown" id="size-dropdown">
+                <div class="size-option" data-size="100%">
+                    <span>Small</span>
+                    <span class="checkmark">✓</span>
+                </div>
+                <div class="size-option" data-size="125%">
+                    <span>Medium</span>
+                    <span class="checkmark">✓</span>
+                </div>
+                <div class="size-option active" data-size="150%">
+                    <span>Normal</span>
+                    <span class="checkmark">✓</span>
+                </div>
+                <div class="size-option" data-size="200%">
+                    <span>Large</span>
+                    <span class="checkmark">✓</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="language-selector-container">
+        <label for="language-select" class="toggle-label">Language</label>
+        <select id="language-select" disabled>
+            <option value="Off">Loading...</option>
+        </select>
+    </div>
+</div>
+
+<div id="subtitle-display">
+    Captions loaded successfully from stream.
+</div>
+<div id="connection-status">
+    <span id="status-indicator" class="status-dot connected"></span>
+    <span>Connected to stream and captions.</span>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        // 1. Initialize JW Player
+        const player = jwplayer('jw-live-player').setup({
+            // Reverted to your Docker host port 80 URL
+            file: "http://wse-trial.wowza.com:1935/whisper/myStream/playlist.m3u8",
+            isLive: true,
+            preload: 'auto',
+            width: '100%',
+            height: '100%',
+            aspectratio: "16:9",
+            controls: true
+        });
+
+        // 2. Element References
+        const subtitleToggle = document.getElementById('subtitle-toggle');
+        const languageSelect = document.getElementById('language-select');
+        const sizeControlBtn = document.getElementById('size-control-btn');
+        const sizeDropdown = document.getElementById('size-dropdown');
+        const sizeOptions = document.querySelectorAll('.size-option');
+        const currentSizeLabel = document.getElementById('current-size-label');
+        const statusIndicator = document.getElementById('status-indicator');
+        const connectionStatusText = document.getElementById('connection-status').children[1];
+
+        // Load and apply initial font size setting (JW Player styling)
+        const initialFontSize = localStorage.getItem('subtitleSize') || '150%';
+        applySubtitleSize(initialFontSize);
+
+        // 3. CRITICAL: Initialization Event Handler
+        player.on('ready', () => {
+            player.play();
+            // Immediately start the process of checking for captions once the player is ready
+            player.on('playlistItem', initializeSubtitleSettings);
+            player.on('captionsList', initializeSubtitleSettings);
+        });
+
+        // OPTIONAL: Error handling
+        player.on('error', (event) => {
+            statusIndicator.className = 'status-dot disconnected';
+            connectionStatusText.textContent = `Stream Error: ${event.message}`;
+        });
+
+        // --- Helper Functions to Interact with JW Player's Captions API ---
+
+        // Function to dynamically populate the language selector
+        function populateLanguageDropdown() {
+            const tracks = player.getCaptionsList();
+            languageSelect.innerHTML = ''; // Clear existing options
+
+            if (!tracks || tracks.length <= 1) { // 1 means only 'Off' is available
+                languageSelect.disabled = true;
+                languageSelect.innerHTML = '<option value="Off">No Captions Found</option>';
+                subtitleToggle.checked = false;
+                subtitleToggle.disabled = true;
+                console.warn('No caption tracks found in the stream manifest.');
+                return;
+            }
+
+            languageSelect.disabled = false;
+            subtitleToggle.disabled = false;
+            let preferredLanguage = localStorage.getItem('selectedLanguage') || 'English';
+            let foundPreferred = false;
+
+            tracks.forEach(track => {
+                const option = document.createElement('option');
+                option.value = track.label;
+                option.textContent = track.label;
+                languageSelect.appendChild(option);
+
+                if (track.label === preferredLanguage) {
+                    foundPreferred = true;
+                }
+            });
+
+            // If preferred language is present, set it as selected
+            if (foundPreferred) {
+                languageSelect.value = preferredLanguage;
+            } else {
+                // Default to the first actual track (tracks[1]) if preferred is missing
+                languageSelect.value = tracks[1].label;
+            }
+        }
+
+        // Apply initial settings based on saved preference
+        function initializeSubtitleSettings() {
+            // Ensure the tracks are loaded before doing anything
+            if (player.getCaptionsList().length <= 1) {
+                // Try to re-check after a short delay if tracks haven't loaded yet (HLS manifests can be delayed)
+                setTimeout(() => { if (player.getCaptionsList().length <= 1) { populateLanguageDropdown(); } }, 1000);
+                return;
+            }
+
+            populateLanguageDropdown();
+
+            const captionsEnabled = localStorage.getItem('subtitlesEnabled') !== 'false';
+            subtitleToggle.checked = captionsEnabled;
+
+            if (captionsEnabled) {
+                // Turn captions ON, select the preferred language track
+                setPlayerCaptionTrack(languageSelect.value);
+            } else {
+                // Turn captions OFF (track 0)
+                player.setCurrentCaptions(0);
+            }
+        }
+
+        function setPlayerCaptionTrack(label) {
+            const tracks = player.getCaptionsList();
+            const trackIndex = tracks.findIndex(track => track.label === label);
+
+            if (trackIndex > 0) {
+                player.setCurrentCaptions(trackIndex);
+                localStorage.setItem('selectedLanguage', label);
+                console.log(`Caption track set to: ${label} (Index: ${trackIndex})`);
+            } else if (label === 'Off') {
+                player.setCurrentCaptions(0);
+                console.log('Captions turned Off (Index: 0)');
+            } else {
+                console.warn(`Caption track for label "${label}" not found.`);
+            }
+        }
+
+        function applySubtitleSize(size) {
+            // Set the font size using JW Player's style API
+            player.setCaptions({
+                'fontScale': size
+            });
+
+            // Update active state in dropdown and label
+            sizeOptions.forEach(opt => opt.classList.remove('active'));
+            document.querySelector(`.size-option[data-size="${size}"]`).classList.add('active');
+
+            const sizeLabel = size === '100%' ? 'Small' : size === '125%' ? 'Medium' : size === '150%' ? 'Normal' : 'Large';
+            currentSizeLabel.textContent = sizeLabel;
+            localStorage.setItem('subtitleSize', size);
+        }
+
+        // --- Event Listeners to Control JW Player ---
+
+        // 4. Handle Subtitle Toggle (ON/OFF)
+        subtitleToggle.addEventListener('change', function () {
+            const enabled = this.checked;
+            localStorage.setItem('subtitlesEnabled', enabled);
+
+            if (enabled) {
+                setPlayerCaptionTrack(languageSelect.value);
+            } else {
+                setPlayerCaptionTrack('Off');
+            }
+        });
+
+        // 5. Handle Language Change
+        languageSelect.addEventListener('change', function () {
+            setPlayerCaptionTrack(this.value);
+            // Ensure the toggle is ON when a language is explicitly selected
+            subtitleToggle.checked = true;
+            localStorage.setItem('subtitlesEnabled', true);
+        });
+
+        // 6. Handle Size Dropdown
+        sizeControlBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sizeDropdown.classList.toggle('show');
+        });
+
+        document.addEventListener('click', () => {
+            sizeDropdown.classList.remove('show');
+        });
+
+        sizeOptions.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const size = option.dataset.size;
+                applySubtitleSize(size);
+                sizeDropdown.classList.remove('show');
+            });
+        });
+
+    });
+</script>
+</body>
+
+</html>
