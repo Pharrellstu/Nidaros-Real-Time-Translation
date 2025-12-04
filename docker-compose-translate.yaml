@@ -54,11 +54,10 @@ services:
         #           capabilities: [gpu]
         #           count: 1
         environment:
-            - MODEL=tiny.en # tiny.en, base.en, small.en, medium.en, large-v3, large-v3-turbo
+            - MODEL=large-v3 # tiny.en, base.en, small.en, medium.en, large-v3, large-v3-turbo
             - LOG_LEVEL=INFO
             - MIN_CHUNK_SIZE=1
-            - SOURCE_LANGUAGE=en
-            - REPORT_LANGUAGES=en,fr,es,de,ja
+            - REPORT_LANGUAGES=en,fr,es,de,ja,pt,it,nl,ru,zh
             - TRANSLATE_HOST=libretranslate.server
             - TRANSLATE_PORT=5000
             # - USE_GPU=True
@@ -70,14 +69,14 @@ services:
 
     libretranslate_server:
         hostname: libretranslate.server
-        image: libretranslate/libretranslate:v1.7.2
-        # image: libretranslate/libretranslate:v1.7.2-cuda 
+        image: libretranslate/libretranslate:latest
+        # image: libretranslate/libretranslate:latest-cuda 
         environment:
-            - LT_LOAD_ONLY=en,fr,es,de,ja
+            - LT_LOAD_ONLY=en,fr,es,de,ja,pt,it,nl,ru,zh
         ports:
             - 5001:5000
         volumes:
-            - /tmp/libretranslate_models_cache:/home/libretranslate/.local
+            - ./libretranslate_models_cache:/home/libretranslate/.local
 
 
     manager:
