@@ -14,11 +14,11 @@ services:
             - SIMU_LIVE=disabled
         volumes:
 #to persist the configurations between starts of Wowza Streaming Engine, uncomment the lines below:
-#            - ./wse/applications:/usr/local/WowzaStreamingEngine/applications
-#            - ./wse/conf:/usr/local/WowzaStreamingEngine/conf
-#            - ./wse/content:/usr/local/WowzaStreamingEngine/content
-#            - ./wse/logs:/usr/local/WowzaStreamingEngine/logs
-#            - ./wse/transcoder:/usr/local/WowzaStreamingEngine/transcoder
+            - ./wse/applications:/usr/local/WowzaStreamingEngine/applications
+            - ./wse/conf:/usr/local/WowzaStreamingEngine/conf
+            - ./wse/content:/usr/local/WowzaStreamingEngine/content
+            - ./wse/logs:/usr/local/WowzaStreamingEngine/logs
+            - ./wse/transcoder:/usr/local/WowzaStreamingEngine/transcoder
             - ./conf:/usr/local/WowzaStreamingEngine/conf.addon
             - ./lib:/usr/local/WowzaStreamingEngine/lib.addon
         ports:
