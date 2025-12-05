@@ -17,6 +17,19 @@ This project implements a Wowza Streaming Engine plugin that captures audio from
 - **Caption Formatting**: Automatic line breaking, text wrapping, and timing synchronization
 - **Delayed Stream Management**: Configurable delay for caption synchronization
 
+## Browser Support
+
+The JW Player demo frontend is supported on the following browsers:
+
+| Browser | Supported Versions |
+|---------|-------------------|
+| Chrome  | Latest 2 versions |
+| Edge    | Latest 2 versions |
+| Firefox | Latest 2 versions |
+| Safari  | Latest 2 versions |
+
+**Note**: For optimal performance and feature compatibility, we recommend keeping your browser up to date with the latest versions.
+
 ## Architecture
 
 The system consists of several components:
