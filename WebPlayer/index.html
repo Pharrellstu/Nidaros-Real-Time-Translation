@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Stream with Player Controls (JW Player)</title>
+
+    <script src="https://cdn.jwplayer.com/libraries/KVS6Czgx.js"></script>
+
+    <style>
+        /* CSS for layout and health check messages */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .video-container {
+            width: 90%;
+            max-width: 960px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 16 / 9;
+        }
+
+        #subtitle-display {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 960px;
+            min-height: 50px;
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: 500;
+            color: #ffffff;
+            border: 1px solid #333;
+        }
+
+        .status-dot {
+            height: 12px;
+            width: 12px;
+            background-color: #bbb;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .connected {
+            background-color: #28a745;
+        }
+
+        .disconnected {
+            background-color: #dc3545;
+        }
+
+        #connection-status {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Live Stream Player (Custom Controls)</h1>
+
+<div class="video-container">
+    <div id="jw-live-player"></div>
+</div>
+
+<div id="subtitle-display">
+    Waiting for stream to load...
+</div>
+<div id="connection-status">
+    <span id="status-indicator" class="status-dot connected"></span>
+    <span>Attempting to connect to stream.</span>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        // 1. Element References
+        const statusIndicator = document.getElementById('status-indicator');
+        const connectionStatusText = document.getElementById('connection-status').children[1];
+        const subtitleDisplayText = document.getElementById('subtitle-display');
+
+        // 2. Initialize JW Player
+        const player = jwplayer('jw-live-player').setup({
+            // CRITICAL FIX: Ensure this URL matches your Wowza application name ('whisper') and stream key ('myStream')
+            file: "http://wse-trial.wowza.com:1935/whisper/myStream_delayed/playlist.m3u8",
+            isLive: true,
+            preload: 'auto',
+            width: '100%',
+            height: '100%',
+            aspectratio: "16:9",
+            controls: true,
+            renderCaptionsNatively: false,
+        });
+
+        // 3. Setup and Error Handling
+        player.on('ready', () => {
+            player.play();
+
+            // Add BOTH custom buttons
+            setupCustomCCButton();
+            setupCustomQualityButton();
+
+            applyInitialCaptionStyle();
+
+            statusIndicator.className = 'status-dot connected';
+            connectionStatusText.textContent = 'Stream connected. Checking for captions...';
+
+            player.on('captionsList', checkCaptionAvailability);
+
+            player.on('error', (event) => {
+                statusIndicator.className = 'status-dot disconnected';
+                connectionStatusText.textContent = `Stream Error: ${event.message}`;
+                subtitleDisplayText.textContent = `CRITICAL ERROR: Stream failed to load. Check HLS URL.`;
+            });
+        });
+
+        // --- Custom Button Logic for Captions ---
+        function setupCustomCCButton() {
+            const ccIconSvg = '<svg fill="#FFFFFF" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h24v24H0z" fill="none"/><path d="M19 8H5c-1.1 0-1.99.9-1.99 2L3 18c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-8c0-1.1-.9-2-2-2zm-2 6H7v-2h10v2zm-4 4H7v-2h6v2z"/></svg>';
+
+            player.addButton(
+                ccIconSvg,
+                'Toggle Captions',
+                togglePlayerCaptions,
+                'cc-toggle-button'
+            );
+        }
+
+        function togglePlayerCaptions() {
+            const currentTrackIndex = player.getCurrentCaptions();
+            const tracks = player.getCaptionsList();
+
+            if (tracks.length <= 1) {
+                subtitleDisplayText.textContent = 'Error: No caption tracks detected in the stream.';
+                return;
+            }
+
+            if (currentTrackIndex === 0) {
+                // Turn ON to the first available track (index 1)
+                player.setCurrentCaptions(1);
+                subtitleDisplayText.textContent = `Captions ON: Showing ${tracks[1].label} track.`;
+            } else {
+                // Turn OFF
+                player.setCurrentCaptions(0);
+                subtitleDisplayText.textContent = 'Captions OFF.';
+            }
+        }
+
+        // --- Custom Button Logic for Quality ---
+        function setupCustomQualityButton() {
+            // SVG for a standard Settings/Quality icon (a gear)
+            const settingsIconSvg = '<svg fill="#FFFFFF" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h24v24H0z" fill="none"/><path d="M12 8c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm0 2c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
+
+            player.addButton(
+                settingsIconSvg,
+                'Cycle Quality',
+                cyclePlayerQuality,
+                'quality-toggle-button'
+            );
+        }
+
+        function cyclePlayerQuality() {
+            // Returns an array of available quality levels
+            const levels = player.getQualityLevels();
+
+            if (!levels || levels.length <= 1) {
+                subtitleDisplayText.textContent = 'Only one stream quality level is available (or levels are still loading).';
+                return;
+            }
+
+            // Returns the index of the current active quality level (0 = Auto)
+            const currentIndex = player.getCurrentQuality();
+
+            // The total number of quality choices (levels.length is the count of Manual levels, plus 1 for 'Auto')
+            const totalChoices = levels.length;
+
+            // Calculate the next index. If we are at the last manual index (totalChoices - 1), go back to Auto (0).
+            const nextIndex = (currentIndex + 1) % totalChoices;
+
+            // Set the new quality level
+            player.setCurrentQuality(nextIndex);
+
+            const nextLevelLabel = (nextIndex === 0) ? 'Auto' : levels[nextIndex].label;
+
+            subtitleDisplayText.textContent = `Quality set to: ${nextLevelLabel}`;
+        }
+
+
+        // --- Core Caption Style and Status Functions ---
+
+        function applyInitialCaptionStyle() {
+            // Apply saved or default size (150%) on load
+            const defaultSize = localStorage.getItem('subtitleSize') || '150%';
+            player.setCaptions({
+                'fontScale': defaultSize
+            });
+        }
+
+        function checkCaptionAvailability() {
+            const tracks = player.getCaptionsList();
+            if (tracks.length > 1) {
+                subtitleDisplayText.textContent = `✅ Stream loaded with ${tracks.length - 1} caption track(s). Click the CC button to enable.`;
+            } else {
+                subtitleDisplayText.textContent = '⚠️ Stream loaded, but no caption tracks were found in the HLS manifest. Check Wowza configuration.';
+            }
+        }
+    });
+</script>
+</body>
+
+</html>
