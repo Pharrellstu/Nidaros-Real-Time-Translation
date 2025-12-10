@@ -98,7 +98,7 @@
         // 2. Initialize JW Player
         const player = jwplayer('jw-live-player').setup({
             // CRITICAL FIX: Ensure this URL matches your Wowza application name ('whisper') and stream key ('myStream')
-            file: "http://wse-trial.wowza.com:1935/whisper/myStream_delayed/playlist.m3u8",
+            file: "http://localhost:1935/whisper/myStream_delayed/playlist.m3u8",
             isLive: true,
             preload: 'auto',
             width: '100%',
