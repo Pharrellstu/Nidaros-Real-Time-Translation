@@ -271,9 +271,11 @@
 
         // --- ARIA Accessibility Enhancement Function ---
         function enhanceButtonAccessibility() {
-            // Find the custom buttons created by JW Player
-            ccButton = document.querySelector('.jw-icon.jw-icon-inline.jw-button-color.jw-reset.cc-toggle-button');
-            qualityButton = document.querySelector('.jw-icon.jw-icon-inline.jw-button-color.jw-reset.quality-toggle-button');
+            // Find the custom buttons created by JW Player by their aria-label attribute
+            // JW Player doesn't add custom class names, so we search by the label we provided
+            const allIcons = document.querySelectorAll('.jw-icon');
+            ccButton = Array.from(allIcons).find(icon => icon.getAttribute('aria-label') === 'Toggle Captions');
+            qualityButton = Array.from(allIcons).find(icon => icon.getAttribute('aria-label') === 'Cycle Quality');
 
             // Enhance CC Toggle Button
             if (ccButton) {
