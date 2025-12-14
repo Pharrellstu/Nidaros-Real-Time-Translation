@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <!-- Properties -->
+    <property name="LOG_PATH" value="${LOG_PATH:-./logs}" />
+    <property name="LOG_FILE" value="${LOG_FILE:-caption-handler}" />
+    <property name="APP_NAME" value="wse-plugin-caption-handlers" />
+
+    <!-- Console Appender with JSON encoding -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>requestId</includeMdcKeyName>
+            <includeMdcKeyName>sessionId</includeMdcKeyName>
+            <includeMdcKeyName>streamName</includeMdcKeyName>
+            <customFields>{"application":"${APP_NAME}"}</customFields>
+            <timeZone>UTC</timeZone>
+        </encoder>
+    </appender>
+
+    <!-- Rolling File Appender with JSON encoding -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${LOG_FILE}.log</file>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdcKeyName>requestId</includeMdcKeyName>
+            <includeMdcKeyName>sessionId</includeMdcKeyName>
+            <includeMdcKeyName>streamName</includeMdcKeyName>
+            <customFields>{"application":"${APP_NAME}"}</customFields>
+            <timeZone>UTC</timeZone>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily rollover with size limit -->
+            <fileNamePattern>${LOG_PATH}/${LOG_FILE}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- Max 100MB per file -->
+            <maxFileSize>100MB</maxFileSize>
+            <!-- Keep 7 days of history -->
+            <maxHistory>7</maxHistory>
+            <!-- Total size cap 500MB -->
+            <totalSizeCap>500MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Log level configuration -->
+    <!-- Third-party libraries: WARN to reduce noise -->
+    <logger name="com.microsoft" level="WARN" />
+    <logger name="com.fasterxml" level="WARN" />
+    <logger name="ch.qos.logback" level="WARN" />
+
+    <!-- Application packages: INFO by default, DEBUG when needed -->
+    <logger name="com.wowza.wms.plugin.captions" level="INFO" />
+    
+    <!-- Enable DEBUG for specific components when troubleshooting -->
+    <!-- Uncomment as needed:
+    <logger name="com.wowza.wms.plugin.captions.whisper" level="DEBUG" />
+    <logger name="com.wowza.wms.plugin.captions.azure" level="DEBUG" />
+    <logger name="com.wowza.wms.plugin.captions.caption" level="DEBUG" />
+    <logger name="com.wowza.wms.plugin.captions.stream" level="DEBUG" />
+    -->
+
+    <!-- Root logger -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+        <appender-ref ref="FILE" />
+    </root>
+
+</configuration>

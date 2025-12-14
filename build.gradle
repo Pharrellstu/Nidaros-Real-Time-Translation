@@ -18,17 +18,20 @@ java {
 
 repositories {
     mavenCentral()
-    flatDir {
-        dirs "$wseLibDir"
+    if (project.hasProperty('wseLibDir')) {
+        flatDir {
+            dirs "$wseLibDir"
+        }
     }
 }
 
 configurations {
     plugin
-    compileClasspath.extendsFrom(plugin)
-    runtimeClasspath.extendsFrom(plugin)
-    testCompileClasspath.extendsFrom(plugin)
-    testRuntimeClasspath.extendsFrom(plugin)
+    loggingLibs
+    compileClasspath.extendsFrom(plugin, loggingLibs)
+    runtimeClasspath.extendsFrom(plugin, loggingLibs)
+    testCompileClasspath.extendsFrom(plugin, loggingLibs)
+    testRuntimeClasspath.extendsFrom(plugin, loggingLibs)
 }
 
 dependencies {
@@ -38,8 +41,10 @@ dependencies {
     implementation name: 'wms-transcoder'
     implementation name: 'wms-httpstreamer-cupertinostreaming'
 //    implementation name: 'wms-pushpublish'
-    implementation 'org.apache.logging.log4j:log4j-core:2.17.2'
-    implementation 'org.apache.logging.log4j:log4j-api:2.17.2'
+    loggingLibs 'org.slf4j:slf4j-api:2.0.9'
+    loggingLibs 'ch.qos.logback:logback-classic:1.4.14'
+    loggingLibs 'ch.qos.logback:logback-core:1.4.14'
+    loggingLibs 'net.logstash.logback:logstash-logback-encoder:7.4'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.0'
     plugin group: 'com.microsoft.cognitiveservices.speech', name: 'client-sdk', version: '1.44.0', ext: 'jar'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
@@ -47,7 +52,7 @@ dependencies {
 }
 
 tasks.register('copyDeps', Copy) {
-    from  (configurations.plugin)
+    from configurations.plugin, configurations.loggingLibs
     into layout.buildDirectory.dir("libs")
 }
 

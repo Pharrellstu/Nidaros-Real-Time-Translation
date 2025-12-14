@@ -1,0 +1,10 @@
+FROM gradle:8.10-jdk17 AS builder
+
+WORKDIR /app
+COPY . .
+
+# Build the plugin and copy JARs to lib folder
+RUN ./gradlew clean build copyLibsForDocker --no-daemon -PwseLibDir=/tmp/empty
+
+FROM scratch AS export
+COPY --from=builder /app/lib /lib

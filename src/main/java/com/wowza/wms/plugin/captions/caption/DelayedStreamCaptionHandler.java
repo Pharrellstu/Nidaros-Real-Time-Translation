@@ -8,7 +8,8 @@ package com.wowza.wms.plugin.captions.caption;
 import com.wowza.wms.plugin.captions.stream.DelayedStream;
 import com.wowza.wms.amf.*;
 import com.wowza.wms.application.IApplicationInstance;
-import com.wowza.wms.logging.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.wowza.wms.vhost.IVHost;
 
 import java.time.*;
@@ -22,7 +23,7 @@ public class DelayedStreamCaptionHandler implements CaptionHandler
     private static final String CLASS_NAME = CLASS.getSimpleName();
     private static final int DEFAULT_WORDS_PER_MINUTE = 150;
     private final DelayedStream delayedStream;
-    private final WMSLogger logger;
+    private static final Logger logger = LoggerFactory.getLogger(DelayedStreamCaptionHandler.class);
     private final boolean debugLog;
 
     private int wordsPerMinute = DEFAULT_WORDS_PER_MINUTE;
@@ -30,7 +31,6 @@ public class DelayedStreamCaptionHandler implements CaptionHandler
     public DelayedStreamCaptionHandler(IApplicationInstance appInstance, DelayedStream delayedStream)
     {
         this.delayedStream = delayedStream;
-        logger = WMSLoggerFactory.getLoggerObj(DelayedStreamCaptionHandler.class, appInstance);
         debugLog = appInstance.getProperties().getPropertyBoolean(PROP_CAPTIONS_DEBUG_LOG, false);
     }
 
@@ -38,7 +38,7 @@ public class DelayedStreamCaptionHandler implements CaptionHandler
     public void handleCaption(Caption caption)
     {
         if (debugLog)
-            logger.info(CLASS_NAME + ".handleCaption: caption = " + caption);
+            logger.info("{}.handleCaption: caption = {}", CLASS_NAME, caption);
         if (delayedStream == null)
             return;
         AMFDataObj amfData = new AMFDataObj();
@@ -56,7 +56,7 @@ public class DelayedStreamCaptionHandler implements CaptionHandler
         AMFPacket packet = new AMFPacket(IVHost.CONTENTTYPE_DATA, 0, data);
         packet.setAbsTimecode(startOffset + captionOffset);
         if (debugLog)
-            logger.info(CLASS_NAME + ".handleCaption: packet = " + packet);
+            logger.info("{}.handleCaption: packet = {}", CLASS_NAME, packet);
         delayedStream.writePacket(packet);
     }
 

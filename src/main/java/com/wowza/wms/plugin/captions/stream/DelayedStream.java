@@ -8,7 +8,8 @@ package com.wowza.wms.plugin.captions.stream;
 import com.wowza.util.FLVUtils;
 import com.wowza.wms.amf.AMFPacket;
 import com.wowza.wms.application.IApplicationInstance;
-import com.wowza.wms.logging.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.wowza.wms.stream.*;
 import com.wowza.wms.stream.publish.Publisher;
 import com.wowza.wms.vhost.IVHost;
@@ -24,7 +25,7 @@ public class DelayedStream
     private static final String CLASS_NAME = CLASS.getSimpleName();
     public static final long DEFAULT_START_DELAY = 30000;
     private final IApplicationInstance appInstance;
-    private final WMSLogger logger;
+    private static final Logger logger = LoggerFactory.getLogger(DelayedStream.class);
     private final String streamName;
     private final ScheduledExecutorService executor;
     private final long startTime;
@@ -42,7 +43,6 @@ public class DelayedStream
     public DelayedStream(IApplicationInstance appInstance, String streamName, ScheduledExecutorService executor)
     {
         this.appInstance = appInstance;
-        this.logger = WMSLoggerFactory.getLoggerObj(appInstance);
         this.debugLog = appInstance.getProperties().getPropertyBoolean(PROP_DELAYED_STREAM_DEBUG_LOG, debugLog);
         this.streamName = streamName;
         this.executor = executor;
@@ -62,7 +62,7 @@ public class DelayedStream
             return;
         packets.add(packet);
         if (debugLog)
-            logger.info(MODULE_NAME + "::" + CLASS_NAME + ".writePacket() [" + appInstance.getContextStr() + "/" + streamName + "] packet: " + packet);
+            logger.info("{}::{}.writePacket() [{}/{}] packet: {}", MODULE_NAME, CLASS_NAME, appInstance.getContextStr(), streamName, packet);
         if (startOffset == -1)
             startOffset = packet.getAbsTimecode();
     }
@@ -100,7 +100,7 @@ public class DelayedStream
                     break;
 
                 if (debugLog)
-                    logger.info(MODULE_NAME + "::" + CLASS_NAME + ".processPackets() [" + appInstance.getContextStr() + "/" + streamName + "] packet: " + packet);
+                    logger.info("{}::{}.processPackets() [{}/{}] packet: {}", MODULE_NAME, CLASS_NAME, appInstance.getContextStr(), streamName, packet);
 
                 if (doSendOnMetaData)
                 {
@@ -132,7 +132,7 @@ public class DelayedStream
                                 continue;
 
                             if (debugLog)
-                                logger.info(MODULE_NAME + "::" + CLASS_NAME + ".writePacket live[onMetadata]: dat:" + timecode);
+                                logger.info("{}::{}.writePacket live[onMetadata]: dat:{}", MODULE_NAME, CLASS_NAME, timecode);
                             publisher.addDataData(metaDataData, metaDataData.length, timecode);
                         }
                         break;
@@ -144,7 +144,7 @@ public class DelayedStream
                 {
                     case IVHost.CONTENTTYPE_AUDIO:
                         if (debugLog)
-                            logger.info(MODULE_NAME + "::" + CLASS_NAME + ".writePacket live: aud:" + timecode + ":" + packet.getSeq());
+                            logger.info("{}::{}.writePacket live: aud:{}:{}", MODULE_NAME, CLASS_NAME, timecode, packet.getSeq());
                         if (isFirstAudio)
                         {
                             IMediaStream audioSourceStream = appInstance.getStreams().getStream(streamName);
@@ -159,7 +159,7 @@ public class DelayedStream
                         break;
                     case IVHost.CONTENTTYPE_VIDEO:
                         if (debugLog)
-                            logger.info(MODULE_NAME + "::" + CLASS_NAME + ".writePacket live: vi" + (FLVUtils.isVideoKeyFrame(packet) ? "k" : "p") + ":" + timecode + ":" + packet.getSeq());
+                            logger.info("{}::{}.writePacket live: vi{}:{}:{}", MODULE_NAME, CLASS_NAME, (FLVUtils.isVideoKeyFrame(packet) ? "k" : "p"), timecode, packet.getSeq());
                         if (isFirstVideo)
                         {
                             IMediaStream videoSourceStream = appInstance.getStreams().getStream(streamName);
@@ -175,7 +175,7 @@ public class DelayedStream
                     case IVHost.CONTENTTYPE_DATA0:
                     case IVHost.CONTENTTYPE_DATA3:
                         if (debugLog)
-                            logger.info(MODULE_NAME + "::" + CLASS_NAME + ".writePacket live: dat:" + timecode + ":" + packet.getSeq());
+                            logger.info("{}::{}.writePacket live: dat:{}:{}", MODULE_NAME, CLASS_NAME, timecode, packet.getSeq());
                         publisher.addDataData(packet.getData(), packet.getSize(), timecode);
                         break;
                 }
@@ -184,7 +184,7 @@ public class DelayedStream
         }
         catch (Exception e)
         {
-            logger.error(MODULE_NAME + "::" + CLASS_NAME + ".writePacket[metadata] ", e);
+            logger.error("{}::{}.writePacket[metadata]", MODULE_NAME, CLASS_NAME, e);
         }
     }
 
