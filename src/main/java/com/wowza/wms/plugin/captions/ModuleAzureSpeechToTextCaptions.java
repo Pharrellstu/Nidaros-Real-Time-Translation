@@ -13,7 +13,7 @@ import com.wowza.wms.plugin.captions.stream.DelayedStreamListener;
 import com.wowza.wms.plugin.captions.stream.LiveStreamPacketizerListener;
 import com.wowza.wms.plugin.captions.transcoder.CaptionsTranscoderCreateListener;
 import com.wowza.wms.application.IApplicationInstance;
-import com.wowza.wms.logging.*;
+import org.slf4j.LoggerFactory;
 import com.wowza.wms.stream.*;
 import com.wowza.wms.timedtext.model.ITimedTextConstants;
 
@@ -32,7 +32,7 @@ public class ModuleAzureSpeechToTextCaptions extends ModuleCaptionsBase
         }
         catch (ClassNotFoundException e)
         {
-            WMSLoggerFactory.getLogger(CLASS).error(String.format("%s exception: %s", MODULE_NAME, e), e);
+            LoggerFactory.getLogger(CLASS).error("{} exception: {}", MODULE_NAME, e.getMessage(), e);
         }
     }
 
@@ -61,10 +61,10 @@ public class ModuleAzureSpeechToTextCaptions extends ModuleCaptionsBase
         }
         catch (NullPointerException npe)
         {
-            logger.error(String.format("%s.onAppCreate [%s] error: %s", MODULE_NAME, appInstance.getContextStr(), npe.getMessage()));
+            logger.error("{}.onAppCreate [{}] error: {}", MODULE_NAME, appInstance.getContextStr(), npe.getMessage());
             enabled = false;
         }
-        logger.info(String.format("%s.onAppCreate: [%s] version: %s enabled: %b", MODULE_NAME, appInstance.getContextStr(), MODULE_VERSION, enabled));
+        logger.info("{}.onAppCreate: [{}] version: {} enabled: {}", MODULE_NAME, appInstance.getContextStr(), MODULE_VERSION, enabled);
     }
 
     public void onAppStart(IApplicationInstance appInstance)
@@ -81,7 +81,7 @@ public class ModuleAzureSpeechToTextCaptions extends ModuleCaptionsBase
         }
         catch (Exception e)
         {
-            logger.error(MODULE_NAME + ".onAppStart exception", e);
+            logger.error("{}.onAppStart exception", MODULE_NAME, e);
         }
     }
 

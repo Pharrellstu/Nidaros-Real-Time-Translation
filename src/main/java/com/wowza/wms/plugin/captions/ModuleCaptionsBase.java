@@ -6,9 +6,9 @@
 package com.wowza.wms.plugin.captions;
 
 import com.wowza.wms.application.IApplicationInstance;
-import com.wowza.wms.logging.WMSLogger;
-import com.wowza.wms.logging.WMSLoggerFactory;
 import com.wowza.wms.module.ModuleBase;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.wowza.wms.timedtext.model.ITimedTextConstants;
 
 public class ModuleCaptionsBase extends ModuleBase
@@ -33,11 +33,11 @@ public class ModuleCaptionsBase extends ModuleBase
     public static final String PROP_NEW_LINE_THRESHOLD = "captionHandlerNewLineThreshold";
     public static final int DEFAULT_NEW_LINE_THRESHOLD = 250;
 
-    protected WMSLogger logger;
+    protected static final Logger logger = LoggerFactory.getLogger(ModuleCaptionsBase.class);
 
     public void onAppCreate(IApplicationInstance appInstance)
     {
-        logger = WMSLoggerFactory.getLoggerObj(CLASS, appInstance);
+        logger.info("Initializing {} version {}", MODULE_NAME, MODULE_VERSION);
         String suffixes = appInstance.getProperties().getPropertyStr("dvrRecorderControlSuffixes");
         if (suffixes != null)
             appInstance.getProperties()

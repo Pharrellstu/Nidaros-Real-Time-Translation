@@ -44,10 +44,10 @@ public class ModuleWhisperCaptions extends ModuleCaptionsBase
         enabled = appInstance.getProperties().getPropertyBoolean(PROP_CAPTIONS_ENABLED, enabled);
         if (!enabled)
         {
-            logger.info(MODULE_NAME + ".onAppStart[" + appInstance.getContextStr() + "] Whisper captions module disabled");
+            logger.info("{}.onAppStart[{}] Whisper captions module disabled", MODULE_NAME, appInstance.getContextStr());
             return;
         }
-        logger.info(MODULE_NAME + ".onAppStart[" + appInstance.getContextStr() + "]");
+        logger.info("{}.onAppStart[{}]", MODULE_NAME, appInstance.getContextStr());
         try
         {
             appInstance.addLiveStreamPacketizerListener(new LiveStreamPacketizerListener(appInstance));
@@ -57,7 +57,7 @@ public class ModuleWhisperCaptions extends ModuleCaptionsBase
         }
         catch (Exception e)
         {
-            logger.error(MODULE_NAME + ".onAppStart[" + appInstance.getContextStr() + "] exception", e);
+            logger.error("{}.onAppStart[{}] exception", MODULE_NAME, appInstance.getContextStr(), e);
         }
     }
 

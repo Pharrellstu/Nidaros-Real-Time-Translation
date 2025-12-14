@@ -9,7 +9,8 @@ import com.microsoft.cognitiveservices.speech.*;
 import com.microsoft.cognitiveservices.speech.audio.*;
 import com.microsoft.cognitiveservices.speech.translation.*;
 import com.wowza.wms.application.*;
-import com.wowza.wms.logging.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.wowza.wms.plugin.captions.audio.SpeechHandler;
 import com.wowza.wms.plugin.captions.caption.Caption;
 import com.wowza.wms.plugin.captions.caption.CaptionHandler;
@@ -31,7 +32,7 @@ public class AzureSpeechToTextHandler implements SpeechHandler
     private static final String CLASS_NAME = CLASS.getSimpleName();
     public static final String DEFAULT_RECOGNITION_LANGUAGE = "en-US";
     private final CaptionHandler captionHandler;
-    private final WMSLogger logger;
+    private static final Logger logger = LoggerFactory.getLogger(AzureSpeechToTextHandler.class);
     private final PushAudioInputStream audioStream = PushAudioInputStream.createPushStream();
     private final Semaphore semaphore = new Semaphore(0);
     private final SpeechConfig speechConfig;
@@ -49,7 +50,6 @@ public class AzureSpeechToTextHandler implements SpeechHandler
             String serviceRegion)
     {
         WMSProperties props = appInstance.getProperties();
-        this.logger = WMSLoggerFactory.getLoggerObj(appInstance);
         debugLog = props.getPropertyBoolean(PROP_CAPTIONS_DEBUG_LOG, false);
         firstPassTerminators = props.getPropertyStr(PROP_LINE_TERMINATORS, DEFAULT_FIRST_PASS_TERMINATORS);
         firstPassPercentage = props.getPropertyInt(PROP_FIRST_PASS_PERCENTAGE, DEFAULT_FIRST_PASS_PERCENTAGE);
@@ -117,10 +117,10 @@ public class AzureSpeechToTextHandler implements SpeechHandler
                     phrases.forEach(grammar::addPhrase);
                 }
 
-                recognizer.sessionStarted.addEventListener((s, e) -> logger.info(MODULE_NAME + "::" + CLASS_NAME + "::" + recognizerName + " session started. session: " + e.getSessionId()));
-                recognizer.sessionStopped.addEventListener(((s, e) -> logger.info(MODULE_NAME + "::" + CLASS_NAME + "::" + recognizerName + " session stopped. session: " + e.getSessionId())));
-                recognizer.speechStartDetected.addEventListener((s, e) -> logger.info(MODULE_NAME + "::" + CLASS_NAME + "::" + recognizerName + " speech start detected. session: " + e.getSessionId()));
-                recognizer.speechEndDetected.addEventListener((s, e) -> logger.info(MODULE_NAME + "::" + CLASS_NAME + "::" + recognizerName + " speech End detected. session: " + e.getSessionId()));
+                recognizer.sessionStarted.addEventListener((s, e) -> logger.info("{}::{}::{} session started. session: {}", MODULE_NAME, CLASS_NAME, recognizerName, e.getSessionId()));
+                recognizer.sessionStopped.addEventListener(((s, e) -> logger.info("{}::{}::{} session stopped. session: {}", MODULE_NAME, CLASS_NAME, recognizerName, e.getSessionId())));
+                recognizer.speechStartDetected.addEventListener((s, e) -> logger.info("{}::{}::{} speech start detected. session: {}", MODULE_NAME, CLASS_NAME, recognizerName, e.getSessionId()));
+                recognizer.speechEndDetected.addEventListener((s, e) -> logger.info("{}::{}::{} speech End detected. session: {}", MODULE_NAME, CLASS_NAME, recognizerName, e.getSessionId()));
                 if (recognizer instanceof TranslationRecognizer)
                 {
                     ((TranslationRecognizer)recognizer).recognizing.addEventListener((s, e) -> handleRecognizingEvent(e.getSessionId(), e.getResult()));
@@ -147,7 +147,7 @@ public class AzureSpeechToTextHandler implements SpeechHandler
         }
         catch (Exception e)
         {
-            logger.error(MODULE_NAME + "::" + CLASS_NAME + ".run exception",  e);
+            logger.error("{}::{}.run exception", MODULE_NAME, CLASS_NAME, e);
         }
     }
 
@@ -159,14 +159,14 @@ public class AzureSpeechToTextHandler implements SpeechHandler
             Instant end = CaptionHelper.epochInstantFromTicks(result.getOffset().add(result.getDuration()));
             long latency = Long.parseLong(result.getProperties().getProperty(PropertyId.SpeechServiceResponse_RecognitionLatencyMs));
             String json = result.getProperties().getProperty(PropertyId.SpeechServiceResponse_JsonResult);
-            logger.info(MODULE_NAME + "::" + CLASS_NAME + "handleRecognizingEvent: session: " + sessionId + " RECOGNIZING: Timing: " + getTimestamp(start, end) + " Latency=" + latency + " Result=" + json);
+            logger.info("{}::{}handleRecognizingEvent: session: {} RECOGNIZING: Timing: {} Latency={} Result={}", MODULE_NAME, CLASS_NAME, sessionId, getTimestamp(start, end), latency, json);
         }
     }
 
     private void handleRecognizedEvent(String sessionId, RecognitionResult result)
     {
         if (result.getReason() == ResultReason.NoMatch && debugLog)
-            logger.info(MODULE_NAME + "::" + CLASS_NAME + "handleRecognizedEvent: session: " + sessionId + " NOMATCH: Speech could not be recognized.");
+            logger.info("{}::{}handleRecognizedEvent: session: {} NOMATCH: Speech could not be recognized.", MODULE_NAME, CLASS_NAME, sessionId);
         else
         {
             Instant start = CaptionHelper.epochInstantFromTicks(result.getOffset());
@@ -174,7 +174,7 @@ public class AzureSpeechToTextHandler implements SpeechHandler
             long latency = Long.parseLong(result.getProperties().getProperty(PropertyId.SpeechServiceResponse_RecognitionLatencyMs));
             String json = result.getProperties().getProperty(PropertyId.SpeechServiceResponse_JsonResult);
             if (debugLog)
-                logger.info(MODULE_NAME + "::" + CLASS_NAME + "handleRecognizedEvent: session: " + sessionId + " RECOGNIZED: Timing: " + getTimestamp(start, end) + " Latency=" + latency + " Result=" + json);
+                logger.info("{}::{}handleRecognizedEvent: session: {} RECOGNIZED: Timing: {} Latency={} Result={}", MODULE_NAME, CLASS_NAME, sessionId, getTimestamp(start, end), latency, json);
             handleResult(result, start, end);
         }
     }
@@ -198,10 +198,10 @@ public class AzureSpeechToTextHandler implements SpeechHandler
 
     private void handleCancelledEvent(String sessionId, CancellationReason reason, CancellationErrorCode errorCode, String errorDetails)
     {
-        logger.warn(MODULE_NAME + "::" + CLASS_NAME + "handleCancelledEvent: session: " + sessionId + " Translation Session Cancelled: Reason=" + reason);
+        logger.warn("{}::{}handleCancelledEvent: session: {} Translation Session Cancelled: Reason={}", MODULE_NAME, CLASS_NAME, sessionId, reason);
         if (reason == CancellationReason.Error) {
-            logger.error(MODULE_NAME + "::" + CLASS_NAME + "handleCancelledEvent: session: " + sessionId + " Translation Session Cancelled: ErrorCode=" + errorCode);
-            logger.error(MODULE_NAME + "::" + CLASS_NAME + "handleCancelledEvent: session: " + sessionId + " Translation Session Cancelled: ErrorDetails=" + errorDetails);
+            logger.error("{}::{}handleCancelledEvent: session: {} Translation Session Cancelled: ErrorCode={}", MODULE_NAME, CLASS_NAME, sessionId, errorCode);
+            logger.error("{}::{}handleCancelledEvent: session: {} Translation Session Cancelled: ErrorDetails={}", MODULE_NAME, CLASS_NAME, sessionId, errorDetails);
         }
         semaphore.release();
     }
