@@ -1,4 +1,4 @@
-name: Wowza Streaming Engine Caption Handlers
+name: Wowza Streaming Engine Caption Handlers Test
 services:
     wse:
         hostname: wse.docker
@@ -44,7 +44,8 @@ services:
 
     whisper_server:
         hostname: whisper.server
-        image: wowza/whisper_streaming:latest
+        build:
+            context: ./whisper_server_custom
         # runtime: nvidia
         # deploy:
         #   resources:
