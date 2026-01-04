@@ -1,0 +1,16 @@
+﻿<Project>
+  <ItemGroup>
+    <StaticWebAssetEndpoint Include="_content/NidarosRTT.API/index.html">
+      <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\index.html'))</AssetFile>
+      <Selectors><![CDATA[[]]]></Selectors>
+      <EndpointProperties><![CDATA[[{"Name":"integrity","Value":"sha256-yJYP76ndasbT2diev5YSiOlN\u002B1cIZpAnLyRLRZc9cFI="}]]]></EndpointProperties>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"no-cache"},{"Name":"Content-Length","Value":"26751"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022yJYP76ndasbT2diev5YSiOlN\u002B1cIZpAnLyRLRZc9cFI=\u0022"},{"Name":"Last-Modified","Value":"Sat, 29 Nov 2025 17:44:35 GMT"}]]]></ResponseHeaders>
+    </StaticWebAssetEndpoint>
+    <StaticWebAssetEndpoint Include="_content/NidarosRTT.API/index.s3bojmhcj0.html">
+      <AssetFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\staticwebassets\index.html'))</AssetFile>
+      <Selectors><![CDATA[[]]]></Selectors>
+      <EndpointProperties><![CDATA[[{"Name":"fingerprint","Value":"s3bojmhcj0"},{"Name":"integrity","Value":"sha256-yJYP76ndasbT2diev5YSiOlN\u002B1cIZpAnLyRLRZc9cFI="},{"Name":"label","Value":"_content/NidarosRTT.API/index.html"}]]]></EndpointProperties>
+      <ResponseHeaders><![CDATA[[{"Name":"Accept-Ranges","Value":"bytes"},{"Name":"Cache-Control","Value":"max-age=31536000, immutable"},{"Name":"Content-Length","Value":"26751"},{"Name":"Content-Type","Value":"text/html"},{"Name":"ETag","Value":"\u0022yJYP76ndasbT2diev5YSiOlN\u002B1cIZpAnLyRLRZc9cFI=\u0022"},{"Name":"Last-Modified","Value":"Sat, 29 Nov 2025 17:44:35 GMT"}]]]></ResponseHeaders>
+    </StaticWebAssetEndpoint>
+  </ItemGroup>
+</Project>

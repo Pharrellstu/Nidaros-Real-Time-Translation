@@ -1,0 +1,362 @@
+{
+  "Version": 1,
+  "Hash": "vQMyvAgZjusAudS+VTiev78JoYEttrpZICKvxtOw4xc=",
+  "Source": "NidarosRTT.API",
+  "BasePath": "_content/NidarosRTT.API",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [
+    {
+      "Name": "NidarosRTT.API\\wwwroot",
+      "Source": "NidarosRTT.API",
+      "ContentRoot": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\wwwroot\\",
+      "BasePath": "_content/NidarosRTT.API",
+      "Pattern": "**"
+    }
+  ],
+  "Assets": [
+    {
+      "Identity": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\obj\\Debug\\net9.0\\compressed\\ta163sxxm0-s3bojmhcj0.gz",
+      "SourceId": "NidarosRTT.API",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\obj\\Debug\\net9.0\\compressed\\",
+      "BasePath": "_content/NidarosRTT.API",
+      "RelativePath": "index#[.{fingerprint=s3bojmhcj0}]?.html.gz",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Alternative",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\wwwroot\\index.html",
+      "AssetTraitName": "Content-Encoding",
+      "AssetTraitValue": "gzip",
+      "Fingerprint": "t38inzskff",
+      "Integrity": "iZwMD8X40oZdMxWIkDiJMds8ulkvPxEuPP0UVshXf1U=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\wwwroot\\index.html"
+    },
+    {
+      "Identity": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\wwwroot\\index.html",
+      "SourceId": "NidarosRTT.API",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\wwwroot\\",
+      "BasePath": "_content/NidarosRTT.API",
+      "RelativePath": "index#[.{fingerprint}]?.html",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "Fingerprint": "s3bojmhcj0",
+      "Integrity": "yJYP76ndasbT2diev5YSiOlN+1cIZpAnLyRLRZc9cFI=",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\index.html"
+    }
+  ],
+  "Endpoints": [
+    {
+      "Route": "index.html",
+      "AssetFile": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\obj\\Debug\\net9.0\\compressed\\ta163sxxm0-s3bojmhcj0.gz",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip",
+          "Quality": "0.000146327188"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "6833"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"iZwMD8X40oZdMxWIkDiJMds8ulkvPxEuPP0UVshXf1U=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 29 Nov 2025 17:44:35 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"yJYP76ndasbT2diev5YSiOlN+1cIZpAnLyRLRZc9cFI=\""
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-yJYP76ndasbT2diev5YSiOlN+1cIZpAnLyRLRZc9cFI="
+        }
+      ]
+    },
+    {
+      "Route": "index.html",
+      "AssetFile": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\wwwroot\\index.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "26751"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"yJYP76ndasbT2diev5YSiOlN+1cIZpAnLyRLRZc9cFI=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 29 Nov 2025 17:44:35 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-yJYP76ndasbT2diev5YSiOlN+1cIZpAnLyRLRZc9cFI="
+        }
+      ]
+    },
+    {
+      "Route": "index.html.gz",
+      "AssetFile": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\obj\\Debug\\net9.0\\compressed\\ta163sxxm0-s3bojmhcj0.gz",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "6833"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"iZwMD8X40oZdMxWIkDiJMds8ulkvPxEuPP0UVshXf1U=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 29 Nov 2025 17:44:35 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "no-cache"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "integrity",
+          "Value": "sha256-iZwMD8X40oZdMxWIkDiJMds8ulkvPxEuPP0UVshXf1U="
+        }
+      ]
+    },
+    {
+      "Route": "index.s3bojmhcj0.html",
+      "AssetFile": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\obj\\Debug\\net9.0\\compressed\\ta163sxxm0-s3bojmhcj0.gz",
+      "Selectors": [
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip",
+          "Quality": "0.000146327188"
+        }
+      ],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "6833"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"iZwMD8X40oZdMxWIkDiJMds8ulkvPxEuPP0UVshXf1U=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 29 Nov 2025 17:44:35 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "W/\"yJYP76ndasbT2diev5YSiOlN+1cIZpAnLyRLRZc9cFI=\""
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "s3bojmhcj0"
+        },
+        {
+          "Name": "label",
+          "Value": "index.html"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-yJYP76ndasbT2diev5YSiOlN+1cIZpAnLyRLRZc9cFI="
+        }
+      ]
+    },
+    {
+      "Route": "index.s3bojmhcj0.html",
+      "AssetFile": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\wwwroot\\index.html",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "26751"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"yJYP76ndasbT2diev5YSiOlN+1cIZpAnLyRLRZc9cFI=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 29 Nov 2025 17:44:35 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "s3bojmhcj0"
+        },
+        {
+          "Name": "label",
+          "Value": "index.html"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-yJYP76ndasbT2diev5YSiOlN+1cIZpAnLyRLRZc9cFI="
+        }
+      ]
+    },
+    {
+      "Route": "index.s3bojmhcj0.html.gz",
+      "AssetFile": "C:\\Users\\user\\Desktop\\Nidaros-Real-Time-Translation\\NidarosRTT.API\\obj\\Debug\\net9.0\\compressed\\ta163sxxm0-s3bojmhcj0.gz",
+      "Selectors": [],
+      "ResponseHeaders": [
+        {
+          "Name": "Accept-Ranges",
+          "Value": "bytes"
+        },
+        {
+          "Name": "Content-Length",
+          "Value": "6833"
+        },
+        {
+          "Name": "Content-Type",
+          "Value": "text/html"
+        },
+        {
+          "Name": "ETag",
+          "Value": "\"iZwMD8X40oZdMxWIkDiJMds8ulkvPxEuPP0UVshXf1U=\""
+        },
+        {
+          "Name": "Last-Modified",
+          "Value": "Sat, 29 Nov 2025 17:44:35 GMT"
+        },
+        {
+          "Name": "Cache-Control",
+          "Value": "max-age=31536000, immutable"
+        },
+        {
+          "Name": "Content-Encoding",
+          "Value": "gzip"
+        },
+        {
+          "Name": "Vary",
+          "Value": "Content-Encoding"
+        }
+      ],
+      "EndpointProperties": [
+        {
+          "Name": "fingerprint",
+          "Value": "s3bojmhcj0"
+        },
+        {
+          "Name": "label",
+          "Value": "index.html.gz"
+        },
+        {
+          "Name": "integrity",
+          "Value": "sha256-iZwMD8X40oZdMxWIkDiJMds8ulkvPxEuPP0UVshXf1U="
+        }
+      ]
+    }
+  ]
+}

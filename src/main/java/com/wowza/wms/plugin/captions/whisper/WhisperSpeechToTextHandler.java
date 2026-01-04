@@ -9,17 +9,19 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wowza.util.StringUtils;
+import com.wowza.wms.application.IApplicationInstance;
+import com.wowza.wms.application.WMSProperties;
 import com.wowza.wms.plugin.captions.audio.SpeechHandler;
 import com.wowza.wms.plugin.captions.caption.Caption;
 import com.wowza.wms.plugin.captions.caption.CaptionHandler;
 import com.wowza.wms.plugin.captions.caption.CaptionHelper;
-import com.wowza.util.StringUtils;
-import com.wowza.wms.application.IApplicationInstance;
-import com.wowza.wms.application.WMSProperties;
+import com.wowza.wms.plugin.captions.whisper.model.CaptionLine;
+import com.wowza.wms.plugin.captions.whisper.model.WhisperResponse;
+import com.wowza.wms.timedtext.model.ITimedTextConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.wowza.wms.plugin.captions.whisper.model.*;
-import com.wowza.wms.timedtext.model.ITimedTextConstants;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,10 +43,19 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
     private static final Class<WhisperSpeechToTextHandler> CLASS = WhisperSpeechToTextHandler.class;
     private static final String CLASS_NAME = CLASS.getSimpleName();
 
+    // MDC keys (must match what your Logback JSON encoder emits)
+    private static final String MDC_SERVICE_NAME = "serviceName";
+    private static final String MDC_SESSION_ID = "sessionId";
+    private static final String MDC_REQUEST_ID = "requestId";
+
+    private static final String SERVICE_NAME_VALUE = "wowza-captions";
+    private static final String ENGINE_VALUE = "whisper";
+
+    private static final Logger logger = LoggerFactory.getLogger(WhisperSpeechToTextHandler.class);
+
     private final LinkedBlockingQueue<ByteBuffer> audioBuffer = new LinkedBlockingQueue<>();
     private final Map<String, LinkedList<CaptionLine>> captionLines = new ConcurrentHashMap<>();
 
-    private static final Logger logger = LoggerFactory.getLogger(WhisperSpeechToTextHandler.class);
     private final CaptionHandler captionHandler;
     private Socket socket;
     private SocketListener socketListener;
@@ -65,10 +76,14 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
 
     private int retryCount = 0;
 
+    // Trace fields for this handler lifetime
+    private final String requestId = UUID.randomUUID().toString();
+
     public WhisperSpeechToTextHandler(IApplicationInstance appInstance, CaptionHandler captionHandler)
     {
         this.appInstance = appInstance;
         this.captionHandler = captionHandler;
+
         WMSProperties props = appInstance.getProperties();
         this.debugLog = props.getPropertyBoolean(PROP_CAPTIONS_DEBUG_LOG, false);
         this.maxLineLength = props.getPropertyInt(PROP_MAX_CAPTION_LINE_LENGTH, CaptionHelper.defaultMaxLineLengthSBCS);
@@ -76,7 +91,11 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         this.newLineThreshold = props.getPropertyInt(PROP_NEW_LINE_THRESHOLD, DEFAULT_NEW_LINE_THRESHOLD);
         this.delay = props.getPropertyLong(PROP_CAPTIONS_STREAM_DELAY, DEFAULT_START_DELAY);
 
-        String languagesStr = appInstance.getTimedTextProperties().getPropertyStr(PROP_DEFAULT_CAPTION_LANGUAGES, ITimedTextConstants.LANGUAGE_ID_ENGLISH);
+        String languagesStr = appInstance.getTimedTextProperties().getPropertyStr(
+                PROP_DEFAULT_CAPTION_LANGUAGES,
+                ITimedTextConstants.LANGUAGE_ID_ENGLISH
+        );
+
         languageMap = Arrays.stream(languagesStr.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
@@ -87,6 +106,11 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
 
         this.socketHost = props.getPropertyStr("whisperSocketHost", "localhost");
         this.socketPort = props.getPropertyInt("whisperSocketPort", 3000);
+
+        // Minimal construction log (don’t leak sensitive config)
+        logger.info("{} created (engine={} host={} port={} requestId={})",
+                CLASS_NAME, ENGINE_VALUE, socketHost, socketPort, requestId);
+
         try
         {
             this.socket = new Socket(socketHost, socketPort);
@@ -96,18 +120,22 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         catch (IOException e)
         {
             socket = null;
-            logger.error("{} error creating Whisper socket: {}", CLASS_NAME, e.getMessage(), e);
+            logger.error("{} error creating Whisper socket", CLASS_NAME, e);
         }
     }
 
     private void addExponentialDelayWithJitter()
     {
-        long jitter = (long) (Math.random() * 1000); // Add up to 1 second of random jitter
+        long jitter = (long) (Math.random() * 1000); // up to 1 second jitter
         long baseDelay = 500;
-        long delay = baseDelay * (1L << retryCount) + jitter;
-        try {
-            Thread.sleep(delay);
-        } catch (InterruptedException ie) {
+        long sleepMs = baseDelay * (1L << retryCount) + jitter;
+
+        try
+        {
+            Thread.sleep(sleepMs);
+        }
+        catch (InterruptedException ie)
+        {
             Thread.currentThread().interrupt();
             throw new RuntimeException(ie);
         }
@@ -120,24 +148,33 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         {
             try
             {
-                logger.info("{}.Socket.reconnect: Attempting to reconnect...", CLASS_NAME);
+                logger.info("pipeline event=stt_reconnect_attempt engine={} attempt={}/{} requestId={}",
+                        ENGINE_VALUE, (retryCount + 1), maxRetries, requestId);
+
                 if (socket != null && !socket.isClosed())
                 {
                     socket.close();
                 }
+
                 socket = new Socket(socketHost, socketPort);
                 socketListener = new SocketListener();
                 new Thread(socketListener, CLASS_NAME + ".SocketListener").start();
-                break; // Exit the method if reconnection is successful
+
+                logger.info("pipeline event=stt_reconnect_success engine={} requestId={}", ENGINE_VALUE, requestId);
+                return;
             }
             catch (Exception e)
             {
                 socket = null;
                 retryCount++;
-                if (retryCount >= maxRetries) {
-                    logger.error("{}.Socket.reconnect: Failed to reconnect after {} attempts", CLASS_NAME, maxRetries, e);
-                    break;
+
+                if (retryCount >= maxRetries)
+                {
+                    logger.error("pipeline event=stt_reconnect_fail engine={} attempts={} requestId={}",
+                            ENGINE_VALUE, maxRetries, requestId, e);
+                    return;
                 }
+
                 addExponentialDelayWithJitter();
             }
         }
@@ -146,37 +183,71 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
     @Override
     public void run()
     {
-        while (!doQuit)
+        // Add stable MDC values for this handler thread.
+        // sessionId should ideally be set upstream in stream start/stop code.
+        MDC.put(MDC_SERVICE_NAME, SERVICE_NAME_VALUE);
+        MDC.put(MDC_REQUEST_ID, requestId);
+
+        long startTs = System.currentTimeMillis();
+        logger.info("pipeline event=stt_start engine={} requestId={}", ENGINE_VALUE, requestId);
+
+        try
         {
-            try
+            while (!doQuit)
             {
-                if (!outputRunning)
+                try
                 {
-                    outputRunning = true;
-                    appInstance.getVHost().getThreadPool().execute(this::processPendingCaptions);
+                    if (!outputRunning)
+                    {
+                        outputRunning = true;
+                        appInstance.getVHost().getThreadPool().execute(this::processPendingCaptions);
+                    }
+
+                    ByteBuffer frame = audioBuffer.poll(100, TimeUnit.MILLISECONDS);
+                    if (frame == null)
+                        continue;
+
+                    if (socket != null && socket.isConnected())
+                    {
+                        socket.getOutputStream().write(frame.array());
+                        socket.getOutputStream().flush();
+                    }
+                    else
+                    {
+                        logger.warn("pipeline event=stt_socket_not_connected engine={} requestId={}", ENGINE_VALUE, requestId);
+                        reconnect();
+                    }
                 }
-                ByteBuffer frame = audioBuffer.poll(100, TimeUnit.MILLISECONDS);
-                if (frame == null)
-                    continue;
-                if (socket != null && socket.isConnected())
+                catch (Exception e)
                 {
-                    socket.getOutputStream().write(frame.array());
-                    socket.getOutputStream().flush();
-                }
-                else
-                {
-                    logger.error("{}.run(): Socket is not connected", CLASS_NAME);
+                    if (doQuit)
+                        break;
+
+                    logger.warn("pipeline event=stt_runtime_error engine={} requestId={}", ENGINE_VALUE, requestId, e);
                     reconnect();
+
+                    if (socket == null)
+                    {
+                        logger.error("pipeline event=stt_fail engine={} reason=socket_null requestId={}", ENGINE_VALUE, requestId);
+                        break;
+                    }
                 }
             }
-            catch (Exception e)
-            {
-                if (doQuit)
-                    break;
-                reconnect();
-                if (socket == null)
-                    break;
-            }
+
+            long durationMs = System.currentTimeMillis() - startTs;
+            logger.info("pipeline event=stt_success engine={} durationMs={} requestId={}", ENGINE_VALUE, durationMs, requestId);
+        }
+        catch (Exception e)
+        {
+            long durationMs = System.currentTimeMillis() - startTs;
+            logger.error("pipeline event=stt_fail engine={} durationMs={} requestId={}", ENGINE_VALUE, durationMs, requestId, e);
+        }
+        finally
+        {
+            // Clear MDC for this handler thread
+            MDC.remove(MDC_SESSION_ID);
+            MDC.remove(MDC_REQUEST_ID);
+            MDC.remove(MDC_SERVICE_NAME);
         }
     }
 
@@ -185,6 +256,7 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         try
         {
             List<Caption> captions = new ArrayList<>();
+
             for (Map.Entry<String, LinkedList<CaptionLine>> entry : captionLines.entrySet())
             {
                 String language = entry.getKey();
@@ -195,7 +267,10 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                     Instant start = null;
                     Instant end = null;
                     List<String> textList = new ArrayList<>();
-                    if (doQuit || lines.size() > maxLineCount || (!lines.isEmpty() && lines.peekLast().getTimeAdded() < System.currentTimeMillis() - delay / 2))
+
+                    if (doQuit
+                            || lines.size() > maxLineCount
+                            || (!lines.isEmpty() && lines.peekLast().getTimeAdded() < System.currentTimeMillis() - delay / 2))
                     {
                         while (textList.size() < maxLineCount && !lines.isEmpty())
                         {
@@ -209,17 +284,28 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
 
                     if (!textList.isEmpty())
                     {
-                        // todo: make trackid dynamic
+                        // TODO: make trackid dynamic
                         Caption caption = new Caption(language, start, end, String.join("\n", textList), 99);
                         captions.add(caption);
                     }
                 }
             }
+
+            if (!captions.isEmpty())
+            {
+                logger.info("pipeline event=caption_generated engine={} count={}", ENGINE_VALUE, captions.size());
+            }
+
             captions.forEach(captionHandler::handleCaption);
+
+            if (!captions.isEmpty())
+            {
+                logger.info("pipeline event=caption_sent engine={} count={}", ENGINE_VALUE, captions.size());
+            }
         }
         catch (Exception e)
         {
-            logger.error("{}.processPendingCaptions: Error processing pending captions: {}", CLASS_NAME, captionLines, e);
+            logger.error("{}::processPendingCaptions error processing pending captions", CLASS_NAME, e);
         }
         finally
         {
@@ -236,7 +322,8 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
     @Override
     public void close()
     {
-        logger.info("{}.close()", CLASS_NAME);
+        logger.info("pipeline event=stt_close engine={} requestId={}", ENGINE_VALUE, requestId);
+
         if (socket != null)
         {
             try
@@ -245,7 +332,7 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
             }
             catch (IOException e)
             {
-                logger.error("{}.close: Error closing socket: {}", CLASS_NAME, e.getMessage(), e);
+                logger.error("{}::close error shutting down socket output", CLASS_NAME, e);
             }
         }
     }
@@ -253,69 +340,82 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
     private void handleWhisperResponse(WhisperResponse response)
     {
         if (debugLog)
-            logger.info("{}.handleWhisperResponse: response: {}", CLASS_NAME, response);
+            logger.debug("whisper response received: {}", response);
+
         String language = languageMap.getOrDefault(response.getLanguage(), response.getLanguage());
         LinkedList<CaptionLine> lines = captionLines.computeIfAbsent(language, k -> new LinkedList<>());
+
         synchronized (lines)
         {
             String text = response.getText();
-            if (!StringUtils.isEmpty(text))
+            if (StringUtils.isEmpty(text))
+                return;
+
+            Instant start = CaptionHelper.epochInstantFromMillis((long) (response.getStart() * 1000));
+            Instant end = CaptionHelper.epochInstantFromMillis((long) (response.getEnd() * 1000));
+
+            StringBuilder sb = new StringBuilder();
+            CaptionLine line = lines.peekLast();
+
+            if (line != null && Duration.between(line.getEnd(), start).toMillis() < newLineThreshold)
             {
-                Instant start = CaptionHelper.epochInstantFromMillis((long) (response.getStart() * 1000));
-                Instant end = CaptionHelper.epochInstantFromMillis((long) (response.getEnd() * 1000));
+                sb.append(line.getText());
+            }
+            else
+            {
+                line = new CaptionLine(language);
+                line.setStart(start);
+                lines.add(line);
+            }
 
-                StringBuilder sb = new StringBuilder();
-                CaptionLine line = lines.peekLast();
-                if (line != null && Duration.between(line.getEnd(), start).toMillis() < newLineThreshold)
-                {
-                    sb.append(line.getText());
-                }
-                else
-                {
-                    line = new CaptionLine(language);
-                    line.setStart(start);
-                    lines.add(line);
-                }
+            List<String> items = Arrays.stream(text.split("\\s+")).toList();
+            if (debugLog)
+                logger.debug("whisper items: {}", items);
 
-                List<String> items = Arrays.stream(text.split("\\s+")).toList();
-                if (debugLog)
-                    logger.info("{}.handleCaptionMessage: items: {}", CLASS_NAME, items);
-                float duration = response.getEnd() - response.getStart();
-                float perWordDuration = duration / items.size();
-                for (int i = 0; i < items.size(); i++)
+            float duration = response.getEnd() - response.getStart();
+            float perWordDuration = items.isEmpty() ? 0 : duration / items.size();
+
+            for (int i = 0; i < items.size(); i++)
+            {
+                String item = items.get(i);
+                float itemStart = response.getStart() + (i * perWordDuration);
+                float itemEnd = itemStart + perWordDuration;
+
+                int length = sb.length();
+                if (length > 0)
                 {
-                    String item = items.get(i);
-                    float itemStart = response.getStart() + (i * perWordDuration);
-                    float itemEnd = itemStart + perWordDuration;
-                    int length = sb.length();
-                    if (length > 0)
+                    // if next word would exceed max length, close line and start new one
+                    if (length + 1 + item.length() > maxLineLength)
                     {
-                        // check if the text length + preceding space will exceed the max line length. If so, create a new line
-                        if (length + 1 + item.length() > maxLineLength)
-                        {
-                            line.setEnd(end);
-                            line.setText(sb.toString());
-                            sb.setLength(0);
-                            if (debugLog)
-                                logger.info("{}.handleCaptionMessage(maxLineLength): start: {}, end: {}, text: {}", CLASS_NAME, line.getStart(), line.getEnd(), line.getText());
-                            line = new CaptionLine(language);
-                            line.setStart(CaptionHelper.epochInstantFromMillis((long) (itemStart * 1000)));
-                            lines.add(line);
-                        }
-                        else
-                            sb.append(" ");
+                        line.setEnd(end);
+                        line.setText(sb.toString());
+                        sb.setLength(0);
+
+                        if (debugLog)
+                            logger.debug("caption line committed: start={} end={} text={}", line.getStart(), line.getEnd(), line.getText());
+
+                        line = new CaptionLine(language);
+                        line.setStart(CaptionHelper.epochInstantFromMillis((long) (itemStart * 1000)));
+                        lines.add(line);
                     }
-                    sb.append(item);
-                    end = CaptionHelper.epochInstantFromMillis((long) (itemEnd * 1000));
+                    else
+                    {
+                        sb.append(" ");
+                    }
                 }
-                text = sb.toString();
-                if (!text.isEmpty())
-                {
-                    line.setEnd(end);
-                    line.setText(text);
-                    if (debugLog)
-                        logger.info("{}.handleCaptionMessage(end): start: {}, end: {}, text: {}", CLASS_NAME, line.getStart(), line.getEnd(), line.getText());
-                }
+
+                sb.append(item);
+                end = CaptionHelper.epochInstantFromMillis((long) (itemEnd * 1000));
+            }
+
+            text = sb.toString();
+            if (!text.isEmpty())
+            {
+                line.setEnd(end);
+                line.setText(text);
+
+                if (debugLog)
+                    logger.debug("caption line updated: start={} end={} text={}", line.getStart(), line.getEnd(), line.getText());
             }
         }
     }
@@ -327,17 +427,26 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         {
             try (InputStream inputStream = socket.getInputStream())
             {
+                logger.info("pipeline event=stt_socket_listener_started engine={} requestId={}", ENGINE_VALUE, requestId);
+
                 parseJsonStream(inputStream);
+
                 doQuit = true;
                 processPendingCaptions();
+
+                logger.info("pipeline event=stt_socket_listener_stopped engine={} requestId={}", ENGINE_VALUE, requestId);
             }
             catch (SocketException s)
             {
-                logger.info("{}.SocketListener.run: SocketException: {}", CLASS_NAME, s.getMessage());
+                logger.info("{}::SocketListener SocketException: {}", CLASS_NAME, s.getMessage());
             }
             catch (IOException e)
             {
-                logger.error("{}.SocketListener.run exception", CLASS_NAME, e);
+                logger.error("{}::SocketListener IOException", CLASS_NAME, e);
+            }
+            catch (Exception e)
+            {
+                logger.error("{}::SocketListener exception", CLASS_NAME, e);
             }
         }
 
@@ -352,11 +461,11 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                 JsonToken token = parser.nextToken();
                 if (token == JsonToken.START_OBJECT)
                 {
-                    // Deserialize the JSON object into a POJO
                     WhisperResponse response = objectMapper.readValue(parser, WhisperResponse.class);
                     handleWhisperResponse(response);
                 }
             }
+
             logger.info("{}.parseJsonStream: end", CLASS_NAME);
         }
     }

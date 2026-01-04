@@ -1,0 +1,13 @@
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\bin\Debug\net9.0\NidarosRTT.Core.deps.json
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\bin\Debug\net9.0\NidarosRTT.Core.dll
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\bin\Debug\net9.0\NidarosRTT.Core.pdb
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\NidarosRTT.Core.csproj.AssemblyReference.cache
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\NidarosRTT.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\NidarosRTT.Core.AssemblyInfoInputs.cache
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\NidarosRTT.Core.AssemblyInfo.cs
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\NidarosRTT.Core.csproj.CoreCompileInputs.cache
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\NidarosRTT.Core.sourcelink.json
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\NidarosRTT.Core.dll
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\refint\NidarosRTT.Core.dll
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\NidarosRTT.Core.pdb
+C:\Users\user\Desktop\Nidaros-Real-Time-Translation\NidarosRTT.Core\obj\Debug\net9.0\ref\NidarosRTT.Core.dll
