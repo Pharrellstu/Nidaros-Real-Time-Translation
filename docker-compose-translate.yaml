@@ -54,11 +54,11 @@ services:
         #           capabilities: [gpu]
         #           count: 1
         environment:
-            - MODEL=small # tiny.en, base.en, small.en, medium.en, large-v3, large-v3-turbo
+            - MODEL=tiny # tiny.en, base.en, small.en, medium.en, large-v3, large-v3-turbo
             - LOG_LEVEL=INFO
             - MIN_CHUNK_SIZE=1
             - SOURCE_LANGUAGE=nl
-            - REPORT_LANGUAGES=nl,de,en
+            - REPORT_LANGUAGES=nl,en,uk
             - TRANSLATE_HOST=libretranslate.server
             - TRANSLATE_PORT=5000
             # - USE_GPU=True
@@ -76,7 +76,7 @@ services:
         image: libretranslate/libretranslate:latest
         # image: libretranslate/libretranslate:v1.7.2-cuda
         environment:
-            - LT_LOAD_ONLY=nl,de,en
+            - LT_LOAD_ONLY=nl,en,uk
         ports:
             - 5001:5000
         volumes:
