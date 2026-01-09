@@ -69,6 +69,50 @@
             color: #aaa;
         }
 
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 10000;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .connection-status.connected {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .connection-status.disconnected {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .connection-status.reconnecting {
+            background-color: #FF9800;
+            color: white;
+        }
+
+        .connection-status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
         /* Enhanced focus visibility for accessibility */
         .jw-button-container button:focus,
         .jw-icon:focus,
@@ -94,6 +138,12 @@
 
     <!-- ARIA: Added region role and descriptive label for video player container -->
     <div class="video-container" role="region" aria-label="Live video player with caption and quality controls">
+        <!-- Connection Status Indicator -->
+        <div id="connectionStatus" class="connection-status connected" role="status" aria-live="polite">
+            <span class="connection-status-dot"></span>
+            <span id="connectionText">Connected</span>
+        </div>
+
         <div id="jw-live-player"></div>
     </div>
 
@@ -121,7 +171,71 @@
         let ccButton = null;
         let qualityButton = null;
 
-        // 2. Initialize JW Player
+        // Subtitle deduplication and memory management
+        const processedSubtitles = new Set();
+        const MAX_SUBTITLE_HISTORY = 100;
+        let subtitleCleanupInterval = null;
+        
+        // Connection state management
+        let connectionCheckInterval = null;
+        let lastCaptionTime = Date.now();
+        const CONNECTION_TIMEOUT_MS = 10000; // 10 seconds
+
+        // Subtitle memory leak prevention
+        function cleanupOldSubtitles() {
+            if (processedSubtitles.size > MAX_SUBTITLE_HISTORY) {
+                const itemsToRemove = processedSubtitles.size - MAX_SUBTITLE_HISTORY;
+                const iterator = processedSubtitles.values();
+                for (let i = 0; i < itemsToRemove; i++) {
+                    const value = iterator.next().value;
+                    if (value) processedSubtitles.delete(value);
+                }
+                console.log('Cleaned up old subtitle tracking data');
+            }
+        }
+
+        // Check for duplicate subtitles
+        function isDuplicateSubtitle(text, time) {
+            const subtitleKey = `${time}_${text}`;
+            if (processedSubtitles.has(subtitleKey)) {
+                console.log('Duplicate subtitle detected, skipping:', text);
+                return true;
+            }
+            processedSubtitles.add(subtitleKey);
+            cleanupOldSubtitles();
+            return false;
+        }
+
+        // Update connection status UI
+        function updateConnectionStatus(status, message) {
+            const statusEl = document.getElementById('connectionStatus');
+            const textEl = document.getElementById('connectionText');
+            
+            statusEl.className = 'connection-status ' + status;
+            textEl.textContent = message;
+            
+            // Announce to screen readers
+            statusEl.setAttribute('aria-label', message);
+        }
+
+        // Monitor connection health
+        function startConnectionMonitoring() {
+            if (connectionCheckInterval) {
+                clearInterval(connectionCheckInterval);
+            }
+            
+            connectionCheckInterval = setInterval(() => {
+                const timeSinceLastCaption = Date.now() - lastCaptionTime;
+                
+                if (timeSinceLastCaption > CONNECTION_TIMEOUT_MS) {
+                    updateConnectionStatus('reconnecting', 'Reconnecting...');
+                } else {
+                    updateConnectionStatus('connected', 'Connected');
+                }
+            }, 2000);
+        }
+
+        // Initialize JW Player
         const player = jwplayer('jw-live-player').setup({
             // CRITICAL FIX: Ensure this URL matches your Wowza application name ('whisper') and stream key ('myStream')
             file: "http://localhost:1935/whisper/myStream_delayed/playlist.m3u8",
@@ -158,6 +272,22 @@
                 statusIndicator.className = 'status-dot disconnected';
                 connectionStatusText.textContent = `Stream Error: ${event.message}`;
                 subtitleDisplayText.textContent = `CRITICAL ERROR: Stream failed to load. Check HLS URL.`;
+            });
+
+            player.on('ready', function() {
+                console.log('JW Player is ready');
+                startConnectionMonitoring();
+                updateConnectionStatus('connected', 'Connected');
+            });
+
+            player.on('captionsChanged', function(event) {
+                console.log('Captions changed:', event);
+                lastCaptionTime = Date.now();
+            });
+
+            player.on('meta', function(event) {
+                console.log('Metadata received:', event);
+                lastCaptionTime = Date.now();
             });
         });
 

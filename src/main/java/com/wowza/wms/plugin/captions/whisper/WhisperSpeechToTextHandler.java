@@ -43,6 +43,7 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
 
     private final LinkedBlockingQueue<ByteBuffer> audioBuffer = new LinkedBlockingQueue<>();
     private final Map<String, LinkedList<CaptionLine>> captionLines = new ConcurrentHashMap<>();
+    private final Set<String> processedCaptionIds = ConcurrentHashMap.newKeySet();
 
     private final WMSLogger logger;
     private final CaptionHandler captionHandler;
@@ -62,8 +63,11 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
 
     private volatile boolean doQuit = false;
     private volatile boolean outputRunning = false;
+    private volatile boolean isConnected = false;
 
     private int retryCount = 0;
+    private static final int MAX_RETRIES = 5;
+    private static final long MAX_CAPTION_AGE_MS = 300000; // 5 minutes
 
     public WhisperSpeechToTextHandler(IApplicationInstance appInstance, CaptionHandler captionHandler)
     {
@@ -93,10 +97,12 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
             this.socket = new Socket(socketHost, socketPort);
             this.socketListener = new SocketListener();
             new Thread(socketListener, CLASS_NAME + ".SocketListener").start();
+            this.isConnected = true;
         }
         catch (IOException e)
         {
             socket = null;
+            isConnected = false;
             logger.error(CLASS_NAME + " error creating Whisper socket: " + e, e);
         }
     }
@@ -116,12 +122,14 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
 
     private void reconnect()
     {
-        int maxRetries = 5;
-        while (retryCount < maxRetries)
+        isConnected = false;
+        clearStaleCaptions();
+        
+        while (retryCount < MAX_RETRIES)
         {
             try
             {
-                logger.info(CLASS_NAME + ".Socket.reconnect: Attempting to reconnect...");
+                logger.info(CLASS_NAME + ".Socket.reconnect: Attempting to reconnect (attempt " + (retryCount + 1) + "/" + MAX_RETRIES + ")...");
                 if (socket != null && !socket.isClosed())
                 {
                     socket.close();
@@ -129,14 +137,19 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                 socket = new Socket(socketHost, socketPort);
                 socketListener = new SocketListener();
                 new Thread(socketListener, CLASS_NAME + ".SocketListener").start();
-                break; // Exit the method if reconnection is successful
+                
+                // Reset retry count on successful reconnection
+                retryCount = 0;
+                isConnected = true;
+                logger.info(CLASS_NAME + ".Socket.reconnect: Successfully reconnected");
+                break;
             }
             catch (Exception e)
             {
                 socket = null;
                 retryCount++;
-                if (retryCount >= maxRetries) {
-                    logger.error(CLASS_NAME + ".Socket.reconnect: Failed to reconnect after " + maxRetries + " attempts", e);
+                if (retryCount >= MAX_RETRIES) {
+                    logger.error(CLASS_NAME + ".Socket.reconnect: Failed to reconnect after " + MAX_RETRIES + " attempts", e);
                     break;
                 }
                 addExponentialDelayWithJitter();
@@ -166,7 +179,10 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                 }
                 else
                 {
-                    logger.error(CLASS_NAME + ".run(): Socket is not connected");
+                    if (isConnected)
+                    {
+                        logger.error(CLASS_NAME + ".run(): Socket is not connected");
+                    }
                     reconnect();
                 }
             }
@@ -234,10 +250,17 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         audioBuffer.add(ByteBuffer.wrap(frame));
     }
 
+    public boolean isConnected()
+    {
+        return isConnected && socket != null && socket.isConnected() && !socket.isClosed();
+    }
+
     @Override
     public void close()
     {
         logger.info(CLASS_NAME + ".close()");
+        doQuit = true;
+        isConnected = false;
         if (socket != null)
         {
             try
@@ -249,12 +272,48 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                 logger.error(CLASS_NAME + ".close: Error closing socket: " + e, e);
             }
         }
+        captionLines.clear();
+        processedCaptionIds.clear();
+    }
+
+    private void clearStaleCaptions()
+    {
+        logger.info(CLASS_NAME + ".clearStaleCaptions: Clearing stale captions during reconnection");
+        captionLines.clear();
+        
+        // Clean up old processed caption IDs to prevent memory buildup
+        long currentTime = System.currentTimeMillis();
+        processedCaptionIds.removeIf(id -> {
+            try {
+                long timestamp = Long.parseLong(id.split("_")[0]);
+                return (currentTime - timestamp) > MAX_CAPTION_AGE_MS;
+            } catch (Exception e) {
+                return false;
+            }
+        });
+    }
+
+    private String generateCaptionId(WhisperResponse response)
+    {
+        return System.currentTimeMillis() + "_" + response.getLanguage() + "_" + 
+               (long)(response.getStart() * 1000) + "_" + (long)(response.getEnd() * 1000) + "_" + 
+               response.getText().hashCode();
     }
 
     private void handleWhisperResponse(WhisperResponse response)
     {
         if (debugLog)
             logger.info(CLASS_NAME + ".handleWhisperResponse: response: " + response);
+        
+        // Deduplication: Check if caption already processed
+        String captionId = generateCaptionId(response);
+        if (!processedCaptionIds.add(captionId))
+        {
+            if (debugLog)
+                logger.info(CLASS_NAME + ".handleWhisperResponse: Duplicate caption detected, skipping: " + captionId);
+            return;
+        }
+        
         String language = languageMap.getOrDefault(response.getLanguage(), response.getLanguage());
         LinkedList<CaptionLine> lines = captionLines.computeIfAbsent(language, k -> new LinkedList<>());
         synchronized (lines)
