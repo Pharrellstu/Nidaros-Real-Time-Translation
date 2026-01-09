@@ -178,8 +178,18 @@
         
         // Connection state management
         let connectionCheckInterval = null;
-        let lastCaptionTime = Date.now();
-        const CONNECTION_TIMEOUT_MS = 10000; // 10 seconds
+        let lastStreamUpdate = Date.now(); // Track stream health, not caption events
+        let captionTracksAvailable = false; // Track if caption tracks exist in manifest
+        const STREAM_TIMEOUT_MS = 30000; // 30 seconds - longer timeout for stream health
+        
+        // Expose for debugging
+        window.streamDebug = {
+            processedSubtitles: processedSubtitles,
+            getSize: () => processedSubtitles.size,
+            clear: () => processedSubtitles.clear(),
+            lastStreamUpdate: () => lastStreamUpdate,
+            captionTracksAvailable: () => captionTracksAvailable
+        };
 
         // Subtitle memory leak prevention
         function cleanupOldSubtitles() {
@@ -218,21 +228,29 @@
             statusEl.setAttribute('aria-label', message);
         }
 
-        // Monitor connection health
+        // Monitor stream health (not caption events - those don't fire for native HLS)
         function startConnectionMonitoring() {
             if (connectionCheckInterval) {
                 clearInterval(connectionCheckInterval);
             }
             
             connectionCheckInterval = setInterval(() => {
-                const timeSinceLastCaption = Date.now() - lastCaptionTime;
+                const timeSinceLastUpdate = Date.now() - lastStreamUpdate;
                 
-                if (timeSinceLastCaption > CONNECTION_TIMEOUT_MS) {
-                    updateConnectionStatus('reconnecting', 'Reconnecting...');
+                if (timeSinceLastUpdate > STREAM_TIMEOUT_MS) {
+                    updateConnectionStatus('reconnecting', 'Stream may have disconnected');
+                    console.warn('Stream health check: No updates for ' + Math.round(timeSinceLastUpdate / 1000) + ' seconds');
                 } else {
-                    updateConnectionStatus('connected', 'Connected');
+                    // Stream is healthy
+                    if (captionTracksAvailable) {
+                        updateConnectionStatus('connected', 'Captions active');
+                    } else {
+                        updateConnectionStatus('connected', 'Stream active');
+                    }
                 }
-            }, 2000);
+            }, 5000); // Check every 5 seconds
+            
+            console.log('Stream health monitoring started (timeout: ' + (STREAM_TIMEOUT_MS / 1000) + 's)');
         }
 
         // Initialize JW Player
@@ -250,6 +268,7 @@
 
         // 3. Setup and Error Handling
         player.on('ready', () => {
+            console.log('JW Player is ready');
             player.play();
 
             // Add BOTH custom buttons
@@ -265,30 +284,41 @@
 
             statusIndicator.className = 'status-dot connected';
             connectionStatusText.textContent = 'Stream connected. Checking for captions...';
-
-            player.on('captionsList', checkCaptionAvailability);
-
-            player.on('error', (event) => {
-                statusIndicator.className = 'status-dot disconnected';
-                connectionStatusText.textContent = `Stream Error: ${event.message}`;
-                subtitleDisplayText.textContent = `CRITICAL ERROR: Stream failed to load. Check HLS URL.`;
-            });
-
-            player.on('ready', function() {
-                console.log('JW Player is ready');
-                startConnectionMonitoring();
-                updateConnectionStatus('connected', 'Connected');
-            });
-
-            player.on('captionsChanged', function(event) {
-                console.log('Captions changed:', event);
-                lastCaptionTime = Date.now();
-            });
-
-            player.on('meta', function(event) {
-                console.log('Metadata received:', event);
-                lastCaptionTime = Date.now();
-            });
+            
+            // Start connection monitoring
+            startConnectionMonitoring();
+            updateConnectionStatus('connected', 'Connected');
+        });
+        
+        // Caption list detection
+        player.on('captionsList', function(event) {
+            checkCaptionAvailability();
+            const tracks = player.getCaptionsList();
+            if (tracks && tracks.length > 1) {
+                captionTracksAvailable = true;
+                console.log('Caption tracks detected in HLS manifest (' + (tracks.length - 1) + ' track(s))');
+                updateConnectionStatus('connected', 'Captions available');
+            }
+        });
+        
+        // Track caption on/off toggle
+        player.on('captionsChanged', function(event) {
+            const currentTrack = player.getCurrentCaptions();
+            console.log('Captions changed: track ' + currentTrack + (currentTrack > 0 ? ' (ON)' : ' (OFF)'));
+        });
+        
+        // Monitor stream metadata (indicates stream is alive)
+        player.on('meta', function(event) {
+            lastStreamUpdate = Date.now();
+        });
+        
+        // Error handling
+        player.on('error', (event) => {
+            console.error('Player error:', event);
+            statusIndicator.className = 'status-dot disconnected';
+            connectionStatusText.textContent = `Stream Error: ${event.message}`;
+            subtitleDisplayText.textContent = `CRITICAL ERROR: Stream failed to load. Check HLS URL.`;
+            updateConnectionStatus('disconnected', 'Connection Error');
         });
 
         // --- Custom Button Logic for Captions ---
@@ -423,9 +453,6 @@
                     ccButton.setAttribute('tabindex', '0');
                 }
                 
-                console.log('✅ ARIA: CC button accessibility enhanced');
-            } else {
-                console.warn('⚠️ ARIA: CC button not found for accessibility enhancement');
             }
 
             // Enhance Quality Button
@@ -454,6 +481,48 @@
                 wcagCompliance: 'WCAG 2.1 Level AA'
             });
         }
+
+        // Move event handlers to correct scope level
+        player.on('remove', function() {
+            console.log('Player removed - cleaning up resources');
+            
+            if (connectionCheckInterval) {
+                clearInterval(connectionCheckInterval);
+                connectionCheckInterval = null;
+            }
+            if (subtitleCleanupInterval) {
+                clearInterval(subtitleCleanupInterval);
+                subtitleCleanupInterval = null;
+            }
+            processedSubtitles.clear();
+            console.log('Cleanup complete');
+        });
+
+        player.on('playlistItem', function(event) {
+            console.log('Playlist item changed');
+            lastStreamUpdate = Date.now();
+        });
+
+        player.on('play', function() {
+            console.log('Playback started');
+            lastStreamUpdate = Date.now();
+        });
+
+        player.on('pause', function() {
+            console.log('Playback paused');
+        });
+
+        // Note: 'cues' event doesn't fire for native HLS WebVTT captions
+        // Captions are rendered by the browser, not accessible via JavaScript
+        player.on('time', function(event) {
+            // Update stream health on playback progress
+            lastStreamUpdate = Date.now();
+        });
+
+        // Periodic cleanup of subtitle tracking
+        subtitleCleanupInterval = setInterval(() => {
+            cleanupOldSubtitles();
+        }, 60000); // Every minute
     });
 </script>
 </body>

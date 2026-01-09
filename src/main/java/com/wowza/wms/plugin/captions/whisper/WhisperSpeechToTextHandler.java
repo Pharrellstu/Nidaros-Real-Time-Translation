@@ -123,17 +123,28 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
     private void reconnect()
     {
         isConnected = false;
+        
+        // Close old socket and listener properly
+        try
+        {
+            if (socket != null && !socket.isClosed())
+            {
+                socket.close();
+            }
+        }
+        catch (Exception e)
+        {
+            logger.warn(CLASS_NAME + ".Socket.reconnect: Error closing old socket", e);
+        }
+        
         clearStaleCaptions();
         
-        while (retryCount < MAX_RETRIES)
+        while (retryCount < MAX_RETRIES && !doQuit)
         {
             try
             {
                 logger.info(CLASS_NAME + ".Socket.reconnect: Attempting to reconnect (attempt " + (retryCount + 1) + "/" + MAX_RETRIES + ")...");
-                if (socket != null && !socket.isClosed())
-                {
-                    socket.close();
-                }
+                
                 socket = new Socket(socketHost, socketPort);
                 socketListener = new SocketListener();
                 new Thread(socketListener, CLASS_NAME + ".SocketListener").start();
@@ -141,7 +152,8 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                 // Reset retry count on successful reconnection
                 retryCount = 0;
                 isConnected = true;
-                logger.info(CLASS_NAME + ".Socket.reconnect: Successfully reconnected");
+                logger.info(CLASS_NAME + ".Socket.reconnect: ✓ Successfully reconnected to " + socketHost + ":" + socketPort + " after " + (retryCount > 0 ? retryCount + " retry attempt(s)" : "first attempt"));
+                logger.debug(CLASS_NAME + ".Socket.reconnect: Connection restored - caption deduplication active, stale captions cleared");
                 break;
             }
             catch (Exception e)
@@ -152,6 +164,7 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                     logger.error(CLASS_NAME + ".Socket.reconnect: Failed to reconnect after " + MAX_RETRIES + " attempts", e);
                     break;
                 }
+                logger.warn(CLASS_NAME + ".Socket.reconnect: Retry " + retryCount + " failed", e);
                 addExponentialDelayWithJitter();
             }
         }
@@ -385,19 +398,38 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         @Override
         public void run()
         {
-            try (InputStream inputStream = socket.getInputStream())
+            Socket localSocket = socket;
+            if (localSocket == null || localSocket.isClosed())
+            {
+                logger.warn(CLASS_NAME + ".SocketListener.run: Socket is null or closed, exiting");
+                return;
+            }
+            
+            try (InputStream inputStream = localSocket.getInputStream())
             {
                 parseJsonStream(inputStream);
-                doQuit = true;
+                if (!doQuit)
+                {
+                    logger.info(CLASS_NAME + ".SocketListener.run: Stream ended, triggering reconnection");
+                    isConnected = false;
+                }
                 processPendingCaptions();
             }
             catch (SocketException s)
             {
-                logger.info(CLASS_NAME + ".SocketListener.run: SocketException: " + s);
+                if (!doQuit)
+                {
+                    logger.info(CLASS_NAME + ".SocketListener.run: SocketException: " + s + ", connection lost");
+                    isConnected = false;
+                }
             }
             catch (IOException e)
             {
-                logger.error(CLASS_NAME + ".SocketListener.run exception: e", e);
+                if (!doQuit)
+                {
+                    logger.error(CLASS_NAME + ".SocketListener.run exception", e);
+                    isConnected = false;
+                }
             }
         }
 
@@ -407,7 +439,7 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
             ObjectMapper objectMapper = new ObjectMapper();
             JsonParser parser = factory.createParser(inputStream);
 
-            while (!parser.isClosed())
+            while (!parser.isClosed() && !doQuit)
             {
                 JsonToken token = parser.nextToken();
                 if (token == JsonToken.START_OBJECT)
@@ -415,6 +447,10 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                     // Deserialize the JSON object into a POJO
                     WhisperResponse response = objectMapper.readValue(parser, WhisperResponse.class);
                     handleWhisperResponse(response);
+                }
+                else if (token == null)
+                {
+                    break;
                 }
             }
             logger.info(CLASS_NAME + ".parseJsonStream: end");
