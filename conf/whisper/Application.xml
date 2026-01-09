@@ -74,7 +74,7 @@
 			<Properties>
 				<Property>
 					<Name>captionLiveIngestLanguages</Name>
-					<Value>nl,de,en,uk</Value>
+					<Value>nl,de,en,uk,ar</Value>
 				</Property>
 			</Properties>
 		</TimedText>
