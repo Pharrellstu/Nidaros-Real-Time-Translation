@@ -70,10 +70,10 @@ services:
 
     libretranslate_server:
         hostname: libretranslate.server
-        image: libretranslate/libretranslate:v1.7.2
-        # image: libretranslate/libretranslate:v1.7.2-cuda 
+        image: libretranslate/libretranslate:latest
+        # image: libretranslate/libretranslate:v1.7.2-cuda
         environment:
-            - LT_LOAD_ONLY=en,fr,es,de,ja
+            - LT_LOAD_ONLY=nl,de,en
         ports:
             - 5001:5000
         volumes:
