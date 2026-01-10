@@ -22,7 +22,6 @@ import com.wowza.wms.plugin.captions.whisper.model.WhisperResponse;
 import com.wowza.wms.timedtext.model.ITimedTextConstants;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Timer;
-import io.micrometer.core.instrument.Timer.Sample;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -57,7 +56,7 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
 
     private static final Logger logger = LoggerFactory.getLogger(WhisperSpeechToTextHandler.class);
     private static final Timer STT_LATENCY_TIMER = Timer.builder("rttranslator_latency_seconds")
-            .description("Whisper STT session latency in seconds")
+            .description("Latency between Whisper response and caption dispatch")
             .tag("engine", ENGINE_VALUE)
             .publishPercentileHistogram()
             .register(MetricsRegistry.registry());
@@ -212,7 +211,6 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         long startTs = System.currentTimeMillis();
         logger.info("pipeline event=stt_start engine={} requestId={}", ENGINE_VALUE, requestId);
 
-        Sample latencySample = Timer.start(MetricsRegistry.registry());
         try
         {
             while (!doQuit)
@@ -269,7 +267,6 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         }
         finally
         {
-            latencySample.stop(STT_LATENCY_TIMER);
             // Clear MDC for this handler thread
             MDC.remove(MDC_SESSION_ID);
             MDC.remove(MDC_REQUEST_ID);
@@ -293,6 +290,7 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                     Instant start = null;
                     Instant end = null;
                     List<String> textList = new ArrayList<>();
+                    long earliestLineTimestamp = -1;
 
                     if (doQuit
                             || lines.size() > maxLineCount
@@ -304,6 +302,8 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                             if (start == null)
                                 start = line.getStart();
                             end = line.getEnd();
+                            if (earliestLineTimestamp == -1)
+                                earliestLineTimestamp = line.getTimeAdded();
                             textList.add(line.getText());
                         }
                     }
@@ -313,6 +313,7 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
                         // TODO: make trackid dynamic
                         Caption caption = new Caption(language, start, end, String.join("\n", textList), 99);
                         captions.add(caption);
+                        recordLatency(earliestLineTimestamp);
                     }
                 }
             }
@@ -338,6 +339,20 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
         {
             outputRunning = false;
         }
+    }
+
+    private void recordLatency(long earliestLineTimestamp)
+    {
+        if (earliestLineTimestamp <= 0)
+        {
+            return;
+        }
+        long latencyMs = System.currentTimeMillis() - earliestLineTimestamp;
+        if (latencyMs < 0)
+        {
+            latencyMs = 0;
+        }
+        STT_LATENCY_TIMER.record(latencyMs, TimeUnit.MILLISECONDS);
     }
 
     @Override
