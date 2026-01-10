@@ -264,10 +264,10 @@ For local development and debugging, you can build the plugin from source:
 
 #### Building from Source
 
-1. Update the `wseLibDir` in `gradle.properties` to point to your local Wowza Streaming Engine lib directory:
+1. Point the build to your local Wowza Streaming Engine `lib` directory by either setting the `WSE_LIB_DIR` environment variable or passing `-PwseLibDir=/path/to/lib` when running Gradle. Example (PowerShell):
 
-```properties
-wseLibDir = /usr/local/WowzaStreamingEngine/lib
+```powershell
+$env:WSE_LIB_DIR="C:\Program Files\Wowza Media Systems\Wowza Streaming Engine 4.9.6+3\lib"
 ```
 
 2. Build the plugin:
