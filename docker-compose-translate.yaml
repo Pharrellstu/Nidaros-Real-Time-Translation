@@ -14,11 +14,11 @@ services:
             - SIMU_LIVE=disabled
         volumes:
 #to persist the configurations between starts of Wowza Streaming Engine, uncomment the lines below:
-#            - ./wse/applications:/usr/local/WowzaStreamingEngine/applications
-#            - ./wse/conf:/usr/local/WowzaStreamingEngine/conf
-#            - ./wse/content:/usr/local/WowzaStreamingEngine/content
-#            - ./wse/logs:/usr/local/WowzaStreamingEngine/logs
-#            - ./wse/transcoder:/usr/local/WowzaStreamingEngine/transcoder
+            - ./wse/applications:/usr/local/WowzaStreamingEngine/applications
+            - ./wse/conf:/usr/local/WowzaStreamingEngine/conf
+            - ./wse/content:/usr/local/WowzaStreamingEngine/content
+            - ./wse/logs:/usr/local/WowzaStreamingEngine/logs
+            - ./wse/transcoder:/usr/local/WowzaStreamingEngine/transcoder
             - ./conf:/usr/local/WowzaStreamingEngine/conf.addon
             - ./lib:/usr/local/WowzaStreamingEngine/lib.addon
         ports:
@@ -28,6 +28,7 @@ services:
             - 1935:1935                 #RTMP
             - 8087:8087                 #REST API
             - 8089:8089                 #REST API Documenation
+            - 9101:9101                 # Prometheus metrics (captions plugin)
             - 6970-6999:6970-6999/udp   #WEBRTC
             - 10000:10000/udp           #SRT
         depends_on:
@@ -77,8 +78,7 @@ services:
         ports:
             - 5001:5000
         volumes:
-            - /tmp/libretranslate_models_cache:/home/libretranslate/.local
-
+            - libretranslate_data:/home/libretranslate/.local
 
     manager:
         hostname: wsem.docker
@@ -88,3 +88,39 @@ services:
             - WSE_HOST=http://wse.docker:8087
         ports:
             - 8088:8080
+
+    frontend:
+        hostname: webplayer.docker
+        image: nginx:alpine
+        container_name: webplayer
+        ports:
+            - 8000:80
+        volumes:
+            - ./WebPlayer:/usr/share/nginx/html:ro
+        restart: unless-stopped
+
+    prometheus:
+        image: prom/prometheus:latest
+        container_name: prometheus
+        volumes:
+            - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+        ports:
+            - 9090:9090
+        depends_on:
+            - wse
+
+    grafana:
+        image: grafana/grafana:latest
+        container_name: grafana
+        environment:
+            - GF_SECURITY_ADMIN_USER=admin
+            - GF_SECURITY_ADMIN_PASSWORD=password
+        ports:
+            - 3001:3000
+        depends_on:
+            - prometheus
+        volumes:
+            - ./grafana/provisioning:/etc/grafana/provisioning:ro
+
+volumes:
+    libretranslate_data:

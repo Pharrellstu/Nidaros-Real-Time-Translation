@@ -21,6 +21,7 @@ import com.wowza.wms.plugin.captions.whisper.model.CaptionLine;
 import com.wowza.wms.plugin.captions.whisper.model.WhisperResponse;
 import com.wowza.wms.timedtext.model.ITimedTextConstants;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -126,6 +127,12 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
 
         this.socketHost = props.getPropertyStr("whisperSocketHost", "localhost");
         this.socketPort = props.getPropertyInt("whisperSocketPort", 3000);
+
+        Gauge.builder("rttranslator_audio_buffer_depth", audioBuffer, LinkedBlockingQueue::size)
+                .description("Pending audio frames waiting to be sent to Whisper")
+                .tag("engine", ENGINE_VALUE)
+                .tag("appInstance", appInstance.getContextStr())
+                .register(MetricsRegistry.registry());
 
         // Minimal construction log (don’t leak sensitive config)
         logger.info("{} created (engine={} host={} port={} requestId={})",

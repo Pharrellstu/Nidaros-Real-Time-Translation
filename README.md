@@ -189,6 +189,7 @@ This starts:
 ### Monitoring & Metrics
 
 - **Application metrics** (latency, errors, drops, throughput) are exposed by the Wowza captions plugin through Micrometer and scraped by Prometheus (`wowza-captions` job). Grafana ships with the `RT Translator Overview` dashboard to visualize these KPIs, and the admin credentials are pre-provisioned via `GF_SECURITY_ADMIN_USER=admin` / `GF_SECURITY_ADMIN_PASSWORD=password` in `docker-compose.yaml`.
+- **Audio buffer depth** (`rttranslator_audio_buffer_depth`): gauges how many audio frames are queued for Whisper. A rising value signals that STT is falling behind; the panel is already wired into the Grafana dashboard once you rebuild/restart Wowza.
 
 Prometheus and Grafana still start automatically with `docker compose up -d`. Visit Grafana at `http://localhost:3001` to see the application dashboard.
 
