@@ -102,7 +102,8 @@ public class DelayedStreamCaptionHandler implements CaptionHandler
         return new CaptionTiming(start, end);
     }
 
-    private String safeStr(String value)
+    @Override
+    public String safeStr(String value)
     {
         return value == null ? "unknown" : value;
     }

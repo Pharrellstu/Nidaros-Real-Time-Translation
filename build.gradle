@@ -45,6 +45,8 @@ dependencies {
     loggingLibs 'ch.qos.logback:logback-classic:1.4.14'
     loggingLibs 'ch.qos.logback:logback-core:1.4.14'
     loggingLibs 'net.logstash.logback:logstash-logback-encoder:7.4'
+    loggingLibs 'io.micrometer:micrometer-core:1.12.2'
+    loggingLibs 'io.micrometer:micrometer-registry-prometheus:1.12.2'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.14.0'
     plugin group: 'com.microsoft.cognitiveservices.speech', name: 'client-sdk', version: '1.44.0', ext: 'jar'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'

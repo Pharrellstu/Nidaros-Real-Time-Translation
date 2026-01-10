@@ -31,7 +31,7 @@ public interface CaptionHandler
             logger.info("pipeline event=caption_sent lang={} trackId={} start={} end={}",
                     safeStr(caption.getLanguage()),
                     caption.getTrackId(),
-                    caption.getStart(),
+                    caption.getBegin(),
                     caption.getEnd());
         }
         finally

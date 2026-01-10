@@ -6,6 +6,7 @@
 package com.wowza.wms.plugin.captions;
 
 import com.wowza.wms.plugin.captions.audio.SpeechHandler;
+import com.wowza.wms.plugin.captions.metrics.MetricsRegistry;
 import com.wowza.wms.plugin.captions.stream.DelayedStream;
 import com.wowza.wms.plugin.captions.stream.DelayedStreamListener;
 import com.wowza.wms.plugin.captions.stream.LiveStreamPacketizerListener;
@@ -47,6 +48,7 @@ public class ModuleWhisperCaptions extends ModuleCaptionsBase
             logger.info("{}.onAppStart[{}] Whisper captions module disabled", MODULE_NAME, appInstance.getContextStr());
             return;
         }
+        MetricsRegistry.ensureServerStarted();
         logger.info("{}.onAppStart[{}]", MODULE_NAME, appInstance.getContextStr());
         try
         {
