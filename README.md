@@ -183,6 +183,14 @@ This starts:
 - **Whisper Server**: http://localhost:3000
 - **LibreTranslate** (if enabled): http://localhost:5001
 - **TestFrontend** : http://localhost:8000
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3001 (credentials `admin` / `password`)
+
+### Monitoring & Metrics
+
+- **Application metrics** (latency, errors, drops, throughput) are exposed by the Wowza captions plugin through Micrometer and scraped by Prometheus (`wowza-captions` job). Grafana ships with the `RT Translator Overview` dashboard to visualize these KPIs, and the admin credentials are pre-provisioned via `GF_SECURITY_ADMIN_USER=admin` / `GF_SECURITY_ADMIN_PASSWORD=password` in `docker-compose.yaml`.
+
+Prometheus and Grafana still start automatically with `docker compose up -d`. Visit Grafana at `http://localhost:3001` to see the application dashboard.
 
 ## Configuration
 
