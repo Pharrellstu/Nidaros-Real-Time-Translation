@@ -28,6 +28,7 @@ services:
             - 1935:1935                 #RTMP
             - 8087:8087                 #REST API
             - 8089:8089                 #REST API Documenation
+            - 8090:8090                 #Health Check Endpoint
             - 6970-6999:6970-6999/udp   #WEBRTC
             - 10000:10000/udp           #SRT
         depends_on:
