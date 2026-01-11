@@ -10,6 +10,7 @@ import com.wowza.wms.application.WMSProperties;
 import com.wowza.wms.logging.WMSLogger;
 import com.wowza.wms.logging.WMSLoggerFactory;
 import com.wowza.wms.module.ModuleBase;
+import com.wowza.wms.plugin.captions.metrics.ServiceMetrics;
 
 /**
  * Wowza module that starts the health check HTTP server.
@@ -42,6 +43,7 @@ public class ModuleHealthCheck extends ModuleBase
 
     private WMSLogger logger;
     private HealthCheckServer healthCheckServer;
+    private ServiceMetrics serviceMetrics;
     private boolean enabled;
 
     public void onAppCreate(IApplicationInstance appInstance)
@@ -72,6 +74,11 @@ public class ModuleHealthCheck extends ModuleBase
             healthCheckServer = new HealthCheckServer(port, healthCheckService, logger);
             healthCheckServer.start();
             logger.info(CLASS_NAME + ".onAppCreate: Health check endpoint available at http://localhost:" + port + "/health");
+
+            // Start Prometheus metrics collection
+            serviceMetrics = new ServiceMetrics(healthCheckService);
+            serviceMetrics.start();
+            logger.info(CLASS_NAME + ".onAppCreate: Prometheus metrics endpoint available at http://localhost:9101/metrics");
         }
         catch (Exception e)
         {
@@ -81,6 +88,11 @@ public class ModuleHealthCheck extends ModuleBase
 
     public void onAppDestroy(IApplicationInstance appInstance)
     {
+        if (serviceMetrics != null)
+        {
+            serviceMetrics.stop();
+            logger.info(CLASS_NAME + ".onAppDestroy: Prometheus metrics stopped");
+        }
         if (healthCheckServer != null)
         {
             healthCheckServer.stop();
