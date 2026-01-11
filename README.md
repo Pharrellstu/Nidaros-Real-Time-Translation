@@ -159,6 +159,8 @@ This starts:
 - Wowza Streaming Engine (port 1935, 8087)
 - Whisper Server (port 3000)
 - Wowza Manager (port 8088)
+- Prometheus (port 9090)
+- Grafana (port 3001)
 
 ### Option 2: Whisper + Translation
 
@@ -173,6 +175,18 @@ This starts:
 - Whisper Server (port 3000)
 - LibreTranslate Server (port 5001)
 - Wowza Manager (port 8088)
+- Prometheus (port 9090)
+- Grafana (port 3001)
+
+After you change the plugin (for example, when adding new translation metrics) rebuild and redeploy it:
+
+```bash
+./gradlew clean build
+cp build/libs/wse-plugin-caption-handlers-1.1.0.jar lib/
+docker compose -f docker-compose-translate.yaml up -d wse
+```
+
+The compose file already routes Whisper to `libretranslate.server`, and `conf/whisper/Application.xml` now sets `captionLiveIngestLanguages` to `en,fr,es,de,ja`, so Wowza automatically publishes caption tracks for every translated language.
 
 ### 3. Access the Services
 
@@ -190,6 +204,7 @@ This starts:
 
 - **Application metrics** (latency, errors, drops, throughput) are exposed by the Wowza captions plugin through Micrometer and scraped by Prometheus (`wowza-captions` job). Grafana ships with the `RT Translator Overview` dashboard to visualize these KPIs, and the admin credentials are pre-provisioned via `GF_SECURITY_ADMIN_USER=admin` / `GF_SECURITY_ADMIN_PASSWORD=password` in `docker-compose.yaml`.
 - **Audio buffer depth** (`rttranslator_audio_buffer_depth`): gauges how many audio frames are queued for Whisper. A rising value signals that STT is falling behind; the panel is already wired into the Grafana dashboard once you rebuild/restart Wowza.
+- **Translation metrics** (`rttranslator_translation_captions_total`, `rttranslator_translation_latency_seconds`): per-language counters and latency timers that light up automatically in Grafana’s “Translation Throughput” and “Translation Latency” panels after the plugin JAR is rebuilt.
 
 Prometheus and Grafana still start automatically with `docker compose up -d`. Visit Grafana at `http://localhost:3001` to see the application dashboard.
 
