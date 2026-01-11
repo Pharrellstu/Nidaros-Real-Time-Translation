@@ -72,7 +72,7 @@
 			<VODTimedTextProviders></VODTimedTextProviders>
 			<!-- Properties for TimedText -->
 			<Properties>
-				<!--<Property>
+				<Property>
 					<Name>captionLiveIngestLanguages</Name>
 					<Value>en,fr,es,de,ja</Value>
 				</Property>-->
