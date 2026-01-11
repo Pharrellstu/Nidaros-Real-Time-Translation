@@ -83,6 +83,19 @@
             outline: 3px solid #4A90E2;
             outline-offset: 2px;
         }
+
+        /* Screen-reader only helper */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
     </style>
 </head>
 
@@ -93,8 +106,11 @@
     <h1>Live Stream Player (Custom Controls)</h1>
 
     <!-- ARIA: Added region role and descriptive label for video player container -->
-    <div class="video-container" role="region" aria-label="Live video player with caption and quality controls">
-        <div id="jw-live-player"></div>
+    <div id="playerRoot" tabindex="0" style="outline: none;" role="region"
+         aria-label="Live video player with caption and quality controls">
+        <div class="video-container">
+            <div id="jw-live-player"></div>
+        </div>
     </div>
 
     <!-- ARIA: Added status role and aria-live for dynamic subtitle status announcements -->
@@ -107,6 +123,14 @@
         <span id="status-indicator" class="status-dot connected" aria-hidden="true"></span>
         <span id="connection-status-text">Attempting to connect to stream.</span>
     </div>
+
+    <!-- Help text for keyboard shortcuts -->
+    <p id="ccHelp" class="sr-only">
+        Keyboard shortcuts: Press S to toggle subtitles. Press Control plus or minus to resize subtitles.
+    </p>
+
+    <!-- Screen reader announcements for subtitle actions -->
+    <div id="srStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 </main>
 
 <script>
@@ -116,10 +140,20 @@
         const statusIndicator = document.getElementById('status-indicator');
         const connectionStatusText = document.getElementById('connection-status-text');
         const subtitleDisplayText = document.getElementById('subtitle-display');
-        
+
         // References for custom buttons (will be populated after JW Player creates them)
         let ccButton = null;
         let qualityButton = null;
+
+        // Keyboard shortcut support
+        const playerRoot = document.getElementById('playerRoot');
+        const srStatus = document.getElementById('srStatus');
+
+        // Subtitle sizing settings
+        const SUBTITLE_SIZE_KEY = 'subtitleSize';
+        const MIN_SCALE = 80;   // percent
+        const MAX_SCALE = 250;  // percent
+        const STEP_SCALE = 10;  // percent
 
         // 2. Initialize JW Player
         const player = jwplayer('jw-live-player').setup({
@@ -154,12 +188,73 @@
 
             player.on('captionsList', checkCaptionAvailability);
 
+            setupKeyboardShortcuts();
+
             player.on('error', (event) => {
                 statusIndicator.className = 'status-dot disconnected';
                 connectionStatusText.textContent = `Stream Error: ${event.message}`;
                 subtitleDisplayText.textContent = `CRITICAL ERROR: Stream failed to load. Check HLS URL.`;
             });
         });
+
+        function setupKeyboardShortcuts() {
+            if (!playerRoot) return;
+
+            // Ensure clicking inside the player area focuses it
+            playerRoot.addEventListener('mousedown', () => playerRoot.focus());
+
+            playerRoot.addEventListener('keydown', (e) => {
+                const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+                if (tag === 'input' || tag === 'textarea') return;
+
+                // S -> Toggle subtitles
+                if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 's' || e.key === 'S')) {
+                    e.preventDefault();
+                    togglePlayerCaptions();
+                    return;
+                }
+
+                // Ctrl + +/- -> Resize subtitles
+                if (e.ctrlKey && !e.metaKey && !e.altKey) {
+                    if (e.key === '+' || e.key === '=') {
+                        e.preventDefault();
+                        resizeSubtitles(+STEP_SCALE);
+                        return;
+                    }
+                    if (e.key === '-') {
+                        e.preventDefault();
+                        resizeSubtitles(-STEP_SCALE);
+                        return;
+                    }
+                }
+            });
+        }
+
+        function resizeSubtitles(deltaPercent) {
+            const current = getSubtitleScalePercent();
+            const next = clamp(current + deltaPercent, MIN_SCALE, MAX_SCALE);
+
+            player.setCaptions({ fontScale: `${next}%` });
+            localStorage.setItem(SUBTITLE_SIZE_KEY, `${next}%`);
+
+            subtitleDisplayText.textContent = `Subtitle size: ${next}%`;
+            announceToScreenReader(`Subtitles size ${next} percent`);
+        }
+
+        function getSubtitleScalePercent() {
+            const raw = localStorage.getItem(SUBTITLE_SIZE_KEY) || '150%';
+            const n = parseInt(String(raw).replace('%', ''), 10);
+            return Number.isFinite(n) ? n : 150;
+        }
+
+        function clamp(v, min, max) {
+            return Math.max(min, Math.min(max, v));
+        }
+
+        function announceToScreenReader(message) {
+            if (!srStatus) return;
+            srStatus.textContent = message;
+        }
 
         // --- Custom Button Logic for Captions ---
         function setupCustomCCButton() {
@@ -179,6 +274,7 @@
 
             if (tracks.length <= 1) {
                 subtitleDisplayText.textContent = 'Error: No caption tracks detected in the stream.';
+                announceToScreenReader('No caption tracks detected.');
                 return;
             }
 
@@ -187,7 +283,8 @@
                 player.setCurrentCaptions(1);
                 const trackName = tracks[1].label;
                 subtitleDisplayText.textContent = `Captions ON: Showing ${trackName} track.`;
-                
+                announceToScreenReader(`Captions on. Showing ${trackName} track.`);
+
                 // ARIA: Update button state and label for screen readers
                 if (ccButton) {
                     ccButton.setAttribute('aria-pressed', 'true');
@@ -197,7 +294,8 @@
                 // Turn OFF
                 player.setCurrentCaptions(0);
                 subtitleDisplayText.textContent = 'Captions OFF.';
-                
+                announceToScreenReader('Captions off.');
+
                 // ARIA: Update button state and label for screen readers
                 if (ccButton) {
                     ccButton.setAttribute('aria-pressed', 'false');
@@ -225,6 +323,7 @@
 
             if (!levels || levels.length <= 1) {
                 subtitleDisplayText.textContent = 'Only one stream quality level is available (or levels are still loading).';
+                announceToScreenReader('Only one stream quality level is available.');
                 return;
             }
 
@@ -243,7 +342,7 @@
             const nextLevelLabel = (nextIndex === 0) ? 'Auto' : levels[nextIndex].label;
 
             subtitleDisplayText.textContent = `Quality set to: ${nextLevelLabel}`;
-            
+
             // ARIA: Update button label for screen readers
             if (qualityButton) {
                 qualityButton.setAttribute('aria-label', `Change video quality, currently ${nextLevelLabel}`);
@@ -254,7 +353,7 @@
 
         function applyInitialCaptionStyle() {
             // Apply saved or default size (150%) on load
-            const defaultSize = localStorage.getItem('subtitleSize') || '150%';
+            const defaultSize = localStorage.getItem(SUBTITLE_SIZE_KEY) || '150%';
             player.setCaptions({
                 'fontScale': defaultSize
             });
@@ -281,18 +380,21 @@
             if (ccButton) {
                 // ARIA: Add button role (redundant but explicit for custom elements)
                 ccButton.setAttribute('role', 'button');
-                
+
                 // ARIA: Add toggle button state (initially off)
                 ccButton.setAttribute('aria-pressed', 'false');
-                
+
                 // ARIA: Add descriptive label
                 ccButton.setAttribute('aria-label', 'Toggle captions, currently off');
-                
+
                 // ARIA: Ensure keyboard focusable
                 if (!ccButton.hasAttribute('tabindex')) {
                     ccButton.setAttribute('tabindex', '0');
                 }
-                
+
+                // ARIA: Add help text for shortcuts
+                ccButton.setAttribute('aria-describedby', 'ccHelp');
+
                 console.log('✅ ARIA: CC button accessibility enhanced');
             } else {
                 console.warn('⚠️ ARIA: CC button not found for accessibility enhancement');
@@ -302,15 +404,15 @@
             if (qualityButton) {
                 // ARIA: Add button role
                 qualityButton.setAttribute('role', 'button');
-                
+
                 // ARIA: Add descriptive label
                 qualityButton.setAttribute('aria-label', 'Change video quality, currently Auto');
-                
+
                 // ARIA: Ensure keyboard focusable
                 if (!qualityButton.hasAttribute('tabindex')) {
                     qualityButton.setAttribute('tabindex', '0');
                 }
-                
+
                 console.log('✅ ARIA: Quality button accessibility enhanced');
             } else {
                 console.warn('⚠️ ARIA: Quality button not found for accessibility enhancement');
@@ -320,7 +422,7 @@
             console.log('🎯 ARIA Accessibility Status:', {
                 ccButtonAccessible: !!ccButton,
                 qualityButtonAccessible: !!qualityButton,
-                ariaLiveRegions: 2,
+                ariaLiveRegions: 3,
                 wcagCompliance: 'WCAG 2.1 Level AA'
             });
         }
