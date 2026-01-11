@@ -1,0 +1,31 @@
+groups:
+  - name: rttranslator-alerts
+    rules:
+      - alert: RTTranslatorHighLatency
+        expr: (sum(rate(rttranslator_latency_seconds_sum[5m]))
+              / sum(rate(rttranslator_latency_seconds_count[5m]))) > 8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Average STT latency is above 8s"
+          description: "Latency stayed high for 2 minutes. Investigate Whisper/translation backlog."
+
+      - alert: RTTranslatorErrorsBurst
+        expr: sum(rate(rttranslator_errors_total[5m])) > 0.1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate exceeded 0.1/s"
+          description: "The speech-to-text handler is throwing errors continuously."
+
+      - alert: RTTranslatorDropRate
+        expr: sum(rate(rttranslator_drops_total[5m])) > 0.1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Audio frames are being dropped"
+          description: "Whisper socket unavailable or overwhelmed."
+

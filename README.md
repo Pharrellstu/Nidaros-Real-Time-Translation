@@ -205,6 +205,7 @@ The compose file already routes Whisper to `libretranslate.server`, and `conf/wh
 - **Application metrics** (latency, errors, drops, throughput) are exposed by the Wowza captions plugin through Micrometer and scraped by Prometheus (`wowza-captions` job). Grafana ships with the `RT Translator Overview` dashboard to visualize these KPIs, and the admin credentials are pre-provisioned via `GF_SECURITY_ADMIN_USER=admin` / `GF_SECURITY_ADMIN_PASSWORD=password` in `docker-compose.yaml`.
 - **Audio buffer depth** (`rttranslator_audio_buffer_depth`): gauges how many audio frames are queued for Whisper. A rising value signals that STT is falling behind; the panel is already wired into the Grafana dashboard once you rebuild/restart Wowza.
 - **Translation metrics** (`rttranslator_translation_captions_total`, `rttranslator_translation_latency_seconds`): per-language counters and latency timers that light up automatically in Grafana’s “Translation Throughput” and “Translation Latency” panels after the plugin JAR is rebuilt.
+- **Alerting**: Prometheus loads `prometheus-alerts.yml`, which ships with default alerts for high latency, error bursts, and drop rate. Edit that file to tune thresholds (e.g., raise the latency limit if your workstation is slow) and then restart Prometheus: `docker compose restart prometheus` (or the translate stack equivalent).
 
 Prometheus and Grafana still start automatically with `docker compose up -d`. Visit Grafana at `http://localhost:3001` to see the application dashboard.
 
