@@ -217,6 +217,11 @@
 				<Description>WhisperSpeechToText</Description>
 				<Class>com.wowza.wms.plugin.captions.ModuleWhisperCaptions</Class>
 			</Module>
+			<Module>
+				<Name>healthCheck</Name>
+				<Description>Health Check Endpoint</Description>
+				<Class>com.wowza.wms.plugin.captions.health.ModuleHealthCheck</Class>
+			</Module>
 		</Modules>
 		<!-- Properties defined here will be added to the IApplication.getProperties() and IApplicationInstance.getProperties() collections -->
 		<Properties>
@@ -239,6 +244,22 @@
 			<Property>
 				<Name>captionHandlerDebug</Name>
 				<Value>false</Value>
+			</Property>
+			<Property>
+				<Name>healthCheckEnabled</Name>
+				<Value>true</Value>
+			</Property>
+			<Property>
+				<Name>healthCheckPort</Name>
+				<Value>8090</Value>
+			</Property>
+			<Property>
+				<Name>libreTranslateHost</Name>
+				<Value>libretranslate.server</Value>
+			</Property>
+			<Property>
+				<Name>libreTranslatePort</Name>
+				<Value>5000</Value>
 			</Property>
 		</Properties>
 	</Application>
