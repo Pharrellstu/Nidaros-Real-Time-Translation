@@ -1,0 +1,24 @@
+{
+  "name": "nidaros-i18n-tests",
+  "version": "1.0.0",
+  "description": "Internationalization automated tests for Nidaros Real-Time Translation",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:chromium": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "test:webkit": "playwright test --project=webkit",
+    "install:browsers": "npx playwright install"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  },
+  "keywords": [
+    "internationalization",
+    "i18n",
+    "testing",
+    "rtl",
+    "captions"
+  ]
+}

@@ -50,6 +50,8 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
     private SocketListener socketListener;
 
     private final Map<String, String> languageMap;
+    private final Map<String, Integer> languageToTrackIdMap = new ConcurrentHashMap<>();
+    private int nextTrackId = 1;
     private final boolean debugLog;
     private final int maxLineLength;
     private final int maxLineCount;
@@ -210,9 +212,12 @@ public class WhisperSpeechToTextHandler implements SpeechHandler
 
                     if (!textList.isEmpty())
                     {
-                        // todo: make trackid dynamic
-                        Caption caption = new Caption(language, start, end, String.join("\n", textList), 99);
+                        // Assign unique track ID per language
+                        int trackId = languageToTrackIdMap.computeIfAbsent(language, k -> nextTrackId++);
+                        Caption caption = new Caption(language, start, end, String.join("\n", textList), trackId);
                         captions.add(caption);
+                        if (debugLog)
+                            logger.info(CLASS_NAME + ".processPendingCaptions: Created caption for language '" + language + "' with trackId=" + trackId);
                     }
                 }
             }
