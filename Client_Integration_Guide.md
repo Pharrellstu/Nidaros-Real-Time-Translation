@@ -6,37 +6,7 @@ This document outlines the architecture, installation, and integration process f
 
 The system captures audio from live streams, processes it through AI models (Whisper for transcription, LibreTranslate for translation), and injects the resulting captions back into the stream as WebVTT tracks for HLS playback.
 
-## 2. System Architecture
-
-The solution operates as a hybrid pipeline involving a custom Wowza Plugin and external Dockerized AI services.
-
-### High-Level Data Flow
-
-```mermaid
-graph LR
-    A[Live Encoder (OBS/RTMP)] -->|RTMP Stream| B(Wowza Streaming Engine)
-    B -->|Audio Packet| C[Custom Wowza Plugin]
-    C -->|Raw Audio| D[Whisper AI Service]
-    D -->|Transcription| C
-    C -->|Text| E[LibreTranslate Service]
-    E -->|Translated Text| C
-    C -->|WebVTT Injection| B
-    B -->|HLS (Video + Captions)| F[Client Player]
-```
-
-### Components
-
-1.  **Wowza Streaming Engine (WSE)**: The core media server.
-2.  **Caption Handler Plugin (Java)**:
-    *   Intercepts audio packets from the live stream.
-    *   Resamples audio to 16kHz PCM (required by Whisper).
-    *   Communicates with the Whisper Server via TCP sockets.
-    *   Handles caption formatting and synchronization.
-    *   Injects captions into the HLS stream.
-3.  **Whisper Server (Docker)**: A Python-based service running OpenAI's Whisper model (via `faster-whisper`) to convert speech to text.
-4.  **LibreTranslate Server (Docker)**: An optional service for translating the transcribed text into target languages (e.g., Spanish, French, German).
-
-## 3. Integration Strategy
+## 2. Integration Strategy
 
 For environments where Wowza Streaming Engine is already deployed on Azure, there are two primary integration paths.
 
@@ -45,9 +15,39 @@ Regardless of the chosen method, the entire project folder (excluding the `src` 
 
 ---
 
-## 4. Installation Steps
+## 3. Installation Steps
 
-### Option A: Sidecar Deployment (Recommended)
+### Option A: Full Rebuild (Recommended)
+*Use this option to replace the existing Wowza installation with a fully pre-configured containerized environment. This method handles the build process automatically and is the most reliable way to ensure all components work together.*
+
+#### Step 1: Prepare the Environment
+1.  **Transfer Files**: Copy the entire project folder to the Azure VM.
+2.  **License Key**: Set the Wowza License Key.
+    ```bash
+    export WSE_LICENSE_KEY=your-license-key-here
+    ```
+
+#### Step 2: Launch the Stack
+Run the complete stack (Wowza + Whisper + LibreTranslate + Manager) using Docker Compose.
+
+```bash
+docker-compose -f docker-compose-translate.yaml up -d
+```
+
+This command will:
+1.  Start a **Wowza Streaming Engine** container with the plugin pre-installed (mapped via volumes).
+2.  Start the **Whisper** and **LibreTranslate** services.
+3.  Start the **Wowza Manager**.
+
+#### Step 3: Verify Access
+*   **Wowza Manager**: `http://<server-ip>:8088` (Login: admin / password)
+*   **Wowza Engine**: `http://<server-ip>:8087`
+
+The `Application.xml` configuration is already handled via the volume mapping `./conf:/usr/local/WowzaStreamingEngine/conf.addon`.
+
+---
+
+### Option B: Sidecar Deployment (Alternative)
 *Use this option to keep the existing Wowza installation and "attach" the translation capabilities to it.*
 
 #### Step 1: Deploy AI Services
@@ -75,7 +75,7 @@ The plugin JAR file (`wse-plugin-caption-handlers-1.1.0.jar`) is required. There
 
 **Method 2: Extract from Docker (If Manual Build Fails)**
 If the manual build fails (often due to missing Wowza libraries on the local machine), use Docker to build the artifact:
-1.  Run the Docker Compose command from Option B (Full Rebuild):
+1.  Run the Docker Compose command from Option A (Full Rebuild):
     ```bash
     docker-compose -f docker-compose-translate.yaml up -d
     ```
@@ -139,37 +139,7 @@ Restart the Wowza Streaming Engine service to load the new plugin and configurat
 
 ---
 
-### Option B: Full Rebuild (Alternative)
-*Use this option to replace the existing Wowza installation with a fully pre-configured containerized environment. This method handles the build process automatically.*
-
-#### Step 1: Prepare the Environment
-1.  **Transfer Files**: Copy the entire project folder to the Azure VM.
-2.  **License Key**: Set the Wowza License Key.
-    ```bash
-    export WSE_LICENSE_KEY=your-license-key-here
-    ```
-
-#### Step 2: Launch the Stack
-Run the complete stack (Wowza + Whisper + LibreTranslate + Manager) using Docker Compose.
-
-```bash
-docker-compose -f docker-compose-translate.yaml up -d
-```
-
-This command will:
-1.  Start a **Wowza Streaming Engine** container with the plugin pre-installed (mapped via volumes).
-2.  Start the **Whisper** and **LibreTranslate** services.
-3.  Start the **Wowza Manager**.
-
-#### Step 3: Verify Access
-*   **Wowza Manager**: `http://<server-ip>:8088` (Login: admin / password)
-*   **Wowza Engine**: `http://<server-ip>:8087`
-
-The `Application.xml` configuration is already handled via the volume mapping `./conf:/usr/local/WowzaStreamingEngine/conf.addon`.
-
----
-
-## 5. Configuration & Tuning
+## 4. Configuration & Tuning
 
 ### Whisper Service Settings
 Modify the environment variables in the `docker-compose` file for the `whisper_server`:
@@ -184,7 +154,7 @@ Modify the environment variables in the `docker-compose` file for the `whisper_s
 *   **Playback URL**: Configure the video player to use the delayed stream URL:
     `http://server:1935/app/streamName_delayed/playlist.m3u8`.
 
-## 6. Verification
+## 5. Verification
 
 1.  **Start a Stream**: Push an RTMP stream to Wowza (e.g., `rtmp://server:1935/live/myStream`).
 2.  **Check Logs**:
@@ -195,7 +165,7 @@ Modify the environment variables in the `docker-compose` file for the `whisper_s
     *   Load the HLS URL: `http://server:1935/live/myStream_delayed/playlist.m3u8`.
     *   Verify that CC options are available and text is appearing.
 
-## 7. Troubleshooting
+## 6. Troubleshooting
 
 *   **Stream Link Not Working**:
     *   If `http://server:1935/...` fails, try replacing `server` with `localhost` if testing locally on the server (e.g., `http://localhost:1935/...`).
