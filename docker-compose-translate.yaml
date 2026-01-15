@@ -80,8 +80,6 @@ services:
             - LT_UPDATE_MODELS=true
         ports:
             - 5001:5000
-        volumes:
-            - ./libretranslate_cache:/home/libretranslate/.local
 
 
     manager:
